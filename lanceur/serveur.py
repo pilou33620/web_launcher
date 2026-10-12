@@ -234,6 +234,12 @@ class Lanceur(SimpleHTTPRequestHandler):
                 return self._json({"ok": True, "maj": g.verifier_launcher()})
             if morceaux == ["api", "launcher", "mettre_a_jour"]:
                 return self._maj_launcher()
+            if morceaux == ["api", "launcher", "redemarrer"]:
+                if g.launcher_action:
+                    return self._json({"erreur": "déjà en cours"}, 409)
+                g.launcher_action = "Redémarrage"
+                threading.Timer(0.8, self.relancer).start()
+                return self._json({"ok": True, "message": "Redémarrage du launcher…"})
         except KeyError:
             return self._json({"erreur": "outil ou action inconnu"}, 404)
         except OccupeErreur as exc:

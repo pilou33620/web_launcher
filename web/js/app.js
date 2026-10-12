@@ -96,12 +96,13 @@ function rendreEntete() {
     <span>Version <code>${v ? echap(v.commit) : "?"}</code>${v ? " · " + dateCourte(v.date) : ""}</span>
     <span>Outils dans <code>${echap(l.dossier_outils)}</code></span>
     <span>launcher.local : <code>${echap(l.mdns)}</code></span>
-    <span>${l.heures_maj > 0 ? `Vérification GitHub toutes les ${l.heures_maj} h${l.prochaine_verif ? ` · prochaine ${l.prochaine_verif - l.heure < 60 ? "dans un instant" : "dans " + duree(l.prochaine_verif - l.heure)}` : ""}` : "Vérification GitHub : à la demande"}</span>
+    <span>${l.heures_maj > 0 ? `Vérification GitHub toutes les ${l.heures_maj} h${l.prochaine_verif ? ` · prochaine ${l.prochaine_verif - l.heure < 60 ? "dans un instant" : "dans " + duree(l.prochaine_verif - l.heure)}` : ""}` : "Vérification GitHub : au démarrage et à la demande"}</span>
     <span class="espace"></span>
     ${m.erreur ? `<span class="message erreur">${echap(m.erreur)}</span>` : ""}
     ${l.action ? `<span class="statut attente">${echap(l.action)}</span>`
       : m.nombre ? `<button class="bouton accent" data-launcher="mettre_a_jour">Mettre à jour le launcher (${m.nombre})</button>`
-      : `<button class="lien" data-launcher="verifier">Vérifier sa mise à jour</button>`}`;
+      : `<button class="lien" data-launcher="verifier">Vérifier sa mise à jour</button>`}
+    ${l.action ? "" : `<button class="lien" data-launcher="redemarrer">Redémarrer le launcher</button>`}`;
   if ($("#pied").dataset.sig !== pied) {
     $("#pied").innerHTML = pied;
     $("#pied").dataset.sig = pied;
@@ -326,6 +327,7 @@ document.addEventListener("click", async (ev) => {
   if (cible.dataset.launcher) {
     const action = cible.dataset.launcher;
     if (action === "mettre_a_jour" && !confirm("Mettre à jour le launcher ? Il redémarre quelques secondes, les outils continuent de tourner.")) return;
+    if (action === "redemarrer" && !confirm("Redémarrer le launcher ? La page est coupée quelques secondes, les outils continuent de tourner. Les mises à jour sont vérifiées au redémarrage.")) return;
     try {
       const r = await poster(`/api/launcher/${action}`);
       toast(r.message || (action === "verifier" ? (r.maj.erreur || (r.maj.nombre ? `${r.maj.nombre} mise(s) à jour disponible(s)` : "Le launcher est à jour")) : "OK"), !!(r.maj && r.maj.erreur));
@@ -355,7 +357,7 @@ function rendreReglages() {
   if (!etat) return;
   const outils = [
     ...etat.outils.map((o) => ({ ...o, affiche: true })),
-    ...etat.launcher.masques.map((o) => ({ ...o, affiche: false })),
+    ...(etat.launcher.masques || []).map((o) => ({ ...o, affiche: false })),
   ];
   $("#reglages-outils").innerHTML = outils.map((o) => {
     const enMarche = o.affiche && (o.pid || o.action || o.phase === "externe");
@@ -370,7 +372,7 @@ function rendreReglages() {
       </form>`;
   }).join("");
 
-  const comptes = etat.launcher.comptes;
+  const comptes = etat.launcher.comptes || [];
   $("#reglages-comptes").innerHTML = comptes.length ? comptes.map((c) => {
     const moi = c.login === etat.launcher.utilisateur;
     const form = mdpOuvert === c.login ? `

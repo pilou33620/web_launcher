@@ -41,6 +41,15 @@ def heure_lancement(pid):
         return time.time()
 
 
+def duree_allume():
+    """Secondes depuis l'allumage du Pi (Linux) ; ailleurs, comme un Pi qui démarre."""
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+
 class Outil:
     def __init__(self, conf, racine_outils):
         self.conf = conf
@@ -659,13 +668,16 @@ class Gestionnaire:
                 o.verrou.release()
 
     def _boucle_maj(self, arret):
-        if self.heures_maj <= 0:
-            return
-        self.prochaine_verif = time.time() + 30
-        if arret.wait(30):                  # laisser le réseau se connecter au démarrage du Pi
+        """Vérification à chaque démarrage du launcher, puis toutes les N heures (si réglé)."""
+        delai = 30 if duree_allume() < 180 else 5   # Pi qui démarre : laisser le réseau se connecter
+        self.prochaine_verif = time.time() + delai
+        if arret.wait(delai):
             return
         while True:
             self.verifier_tous()
+            if self.heures_maj <= 0:
+                self.prochaine_verif = None
+                return
             self.prochaine_verif = time.time() + self.heures_maj * 3600
             if arret.wait(self.heures_maj * 3600):
                 return
