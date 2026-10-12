@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Web Launcher</title>
+<link rel="icon" href="/icones/launcher.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="entete">
+  <div class="marque">
+    <img src="/icones/launcher.svg" alt="" width="40" height="40">
+    <div>
+      <h1>Web<span>Launcher</span></h1>
+      <p id="sous-titre">Raspberry Pi</p>
+    </div>
+  </div>
+  <div class="adresses" id="adresses"></div>
+</header>
+
+<section class="barre">
+  <span class="etiquette">01 / Web tools</span>
+  <span class="etiquette" id="compte"></span>
+  <span class="espace"></span>
+  <button class="lien" id="verifier-tout">Vérifier les mises à jour</button>
+</section>
+
+<main class="grille" id="grille"></main>
+
+<footer class="pied" id="pied"></footer>
+
+<dialog id="journal">
+  <div class="journal-tete">
+    <strong id="journal-titre">Journal</strong>
+    <span class="espace"></span>
+    <button class="lien" id="journal-actualiser">Actualiser</button>
+    <button class="lien" id="journal-fermer">Fermer ✕</button>
+  </div>
+  <pre id="journal-texte"></pre>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

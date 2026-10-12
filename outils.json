@@ -1,0 +1,65 @@
+{
+  "_aide": "Catalogue des web tools. Pour changer un réglage sans toucher à ce fichier (suivi par git), créer config.local.json avec seulement les clés à remplacer (voir README).",
+
+  "dossier_outils": "~/Documents",
+  "port": 80,
+  "port_secours": 8090,
+  "nom_mdns": "launcher",
+  "verification_maj_heures": 6,
+
+  "outils": [
+    {
+      "id": "tooth_dentaire",
+      "nom": "Tooth",
+      "suffixe": "Dentaire",
+      "description": "Stock et quotidien du cabinet dentaire",
+      "accent": "#3b82f6",
+      "icone": "dent",
+      "depot": "https://github.com/pilou33620/tooth_dentaire.git",
+      "dossiers": ["tooth_dentaire"],
+      "port": 8150,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause"],
+      "venv": true
+    },
+    {
+      "id": "web_menu",
+      "nom": "Menu",
+      "suffixe": "Gamelles",
+      "description": "Menus, portions et liste de courses",
+      "accent": "#f97316",
+      "icone": "menu",
+      "depot": "https://github.com/pilou33620/web_menu.git",
+      "dossiers": ["web_menu"],
+      "port": 8080,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--maj", "0"]
+    },
+    {
+      "id": "web_conquete",
+      "nom": "Conquête",
+      "suffixe": "1790",
+      "description": "Jeu de stratégie, Aquitaine 1790",
+      "accent": "#a855f7",
+      "icone": "conquete",
+      "depot": "https://github.com/pilou33620/web_conquete.git",
+      "dossiers": ["web_conquete"],
+      "port": 8790,
+      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"]
+    },
+    {
+      "id": "web_suite",
+      "nom": "Web",
+      "suffixe": "Suite",
+      "description": "WEB_CAO, WEB_ANTENNA et WEB_3D",
+      "accent": "#10b981",
+      "icone": "suite",
+      "depot": "https://github.com/pilou33620/web_suite.git",
+      "dossiers": ["web_suite", "WEB_SUITE", "WEB_TOOLS"],
+      "port": 8100,
+      "commande": ["{python}", "lanceur/web_suite.py", "--reseau", "--sans-navigateur", "--sans-maj", "--port", "{port}"],
+      "apres_clonage": [["{python}", "lanceur/installer.py", "tous", "--sans-dependances"]],
+      "sous_depots": ["WEB_CAO", "WEB_ANTENNA", "WEB_3D"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 20
+    }
+  ]
+}
