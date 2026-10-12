@@ -30,9 +30,10 @@ L'installateur :
 1. installe ce qui manque : `git`, `python3-venv` (pour tooth_dentaire), `avahi-utils` (pour `launcher.local`) ;
 2. propose de désactiver les anciens services `gamelles` (web_menu) et `web_conquete`
    s'ils existent : c'est le launcher qui gère ces outils désormais ;
-3. crée le service systemd `web_launcher` : il démarre à l'allumage, sur le **port 80**
+3. demande l'**identifiant et le mot de passe** de la page web (voir « Compte ») ;
+4. crée le service systemd `web_launcher` : il démarre à l'allumage, sur le **port 80**
    (sans être root), et redémarre tout seul en cas de problème ;
-4. propose de connecter le Pi à GitHub si `gh` est installé (dépôts privés, voir plus bas).
+5. propose de connecter le Pi à GitHub si `gh` est installé (dépôts privés, voir plus bas).
 
 À la fin, il affiche les adresses du launcher. Elles sont aussi en haut de la page.
 
@@ -78,8 +79,9 @@ Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour mainten
 - **Toujours allumé** : un outil allumé reste allumé après un redémarrage du Pi (badge
   *Auto*). **Arrêter** le retire. S'il plante, il est relancé (3 fois en 10 minutes au plus,
   ensuite l'erreur reste affichée avec le journal).
-- **Mises à jour** : le launcher regarde GitHub toutes les 6 heures (et avec le bouton
-  *Vérifier les mises à jour*). **Mettre à jour** marche même si l'outil tourne : arrêt,
+- **Mises à jour** : rien n'est fait tout seul. **Vérifier les mises à jour** (en haut, ou
+  menu **…** d'un outil) regarde GitHub et affiche les nouveautés ; **Mettre à jour** les
+  installe quand vous le décidez. Elle marche même si l'outil tourne : arrêt,
   `git pull --ff-only`, réinstallation des bibliothèques si `requirements.txt` a changé,
   redémarrage. Jamais de fusion ni d'écrasement : si des fichiers suivis par git ont été
   modifiés sur le Pi, la mise à jour est refusée et les fichiers sont nommés.
@@ -107,10 +109,10 @@ l'arrêt est alors considéré comme voulu (pas de relance automatique).
 
 **Sécurité** : ce n'est **pas** un shell. On ne peut ni lancer de commande sur le Pi ni
 ouvrir bash : seulement écrire dans l'entrée de l'outil déjà lancé (texte, Entrée, Tab,
-effacement, Ctrl+C, Ctrl+D ; pas de Ctrl+Z ni de séquences d'échappement). Mais tout
-appareil du réseau local peut lire ce que les outils affichent et répondre à leurs
-questions. Le jeton réseau de WEB·SUITE est masqué (`jeton=•••`). Pour un outil sans
-terminal : `"terminal": false` dans `config.local.json`.
+effacement, Ctrl+C, Ctrl+D ; pas de Ctrl+Z ni de séquences d'échappement). Seul un
+appareil connecté au launcher peut lire ce que les outils affichent et répondre à leurs
+questions (voir « Compte »). Le jeton réseau de WEB·SUITE est masqué (`jeton=•••`).
+Pour un outil sans terminal : `"terminal": false` dans `config.local.json`.
 
 ## Particularités des outils
 
@@ -161,7 +163,7 @@ créer `config.local.json` (ignoré par git) avec seulement ce qui change :
 {
   "port": 80,
   "dossier_outils": "~/Documents",
-  "verification_maj_heures": 6,
+  "verification_maj_heures": 0,
   "outils": [
     { "id": "web_menu", "port": 8000 },
     { "id": "web_conquete", "masque": true }
@@ -173,7 +175,8 @@ créer `config.local.json` (ignoré par git) avec seulement ce qui change :
 - un nouvel `id` : ajoute un outil (`nom`, `depot`, `dossiers`, `port`, `commande` avec
   `{python}` et `{port}`, `venv`, `accent`...). Voir `outils.json` pour des exemples ;
 - `"nom_mdns": "launcher"` : le nom annoncé (`launcher.local`), `null` pour ne rien annoncer ;
-- `"verification_maj_heures": 0` : ne jamais regarder GitHub tout seul.
+- `"verification_maj_heures": 6` : regarder GitHub tout seul toutes les 6 heures (vérifier
+  seulement, jamais installer) ; `0` par défaut : seulement quand on clique.
 
 Puis `sudo systemctl restart web_launcher`.
 
@@ -196,13 +199,40 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 Tests : `python3 -m unittest discover tests` (un faux outil et un dépôt git local,
 sans réseau).
 
+## Compte
+
+La page du launcher (cartes, terminaux, journaux, API) demande un **identifiant et un mot
+de passe**. Créés par `installer.sh`, ou à tout moment sur le Pi :
+
+```bash
+python3 launcher.py --compte     # créer, ou changer l'identifiant / le mot de passe
+```
+
+- Le mot de passe n'est **jamais stocké en clair** : seule son empreinte **scrypt** (sel
+  aléatoire, calcul volontairement lent et gourmand en mémoire) est dans
+  `compte.local.json`, lisible par son seul propriétaire (`chmod 600`), ignoré par git.
+  Un vol de ce fichier ne donne pas le mot de passe.
+- Connecté, l'appareil reçoit un jeton de session aléatoire (256 bits) dans un cookie
+  `HttpOnly` / `SameSite=Strict`, valable 30 jours. Le launcher n'en garde que l'empreinte
+  SHA-256 (`sessions.local.json`). **Déconnexion** en haut de la page.
+- 5 erreurs depuis une même adresse la bloquent 5 minutes.
+- Changer le mot de passe déconnecte tous les appareils.
+- Mot de passe oublié : `python3 launcher.py --compte` sur le Pi (en SSH).
+- Sans compte créé, la page reste ouverte à tous et l'affiche en rouge.
+
 ## Sécurité
 
-Pas de mot de passe : le launcher est prévu pour le réseau de la maison. Tout appareil
-du réseau local peut démarrer, arrêter et mettre à jour les outils. Les autres sites
-web ne le peuvent pas (en-tête `X-Launcher` exigé, nom d'hôte contrôlé contre le DNS
-rebinding). **Ne pas exposer le port 80 du Pi sur Internet** (pas de redirection de
-port sur la box).
+- **Ce que protège le compte** : le launcher (démarrer, arrêter, mettre à jour, installer,
+  terminaux, journaux). Les autres sites web ne peuvent pas non plus le piloter (cookie
+  `SameSite=Strict`, en-tête `X-Launcher` exigé, nom d'hôte contrôlé contre le DNS rebinding).
+- **Ce qu'il ne protège pas** : les outils eux-mêmes, sur leurs ports (8150, 8080...),
+  restent ouverts au réseau local comme avant. WEB·SUITE garde son propre code d'appairage.
+- **Connexion en HTTP** : sur le réseau de la maison, la page n'est pas chiffrée (pas de
+  HTTPS, qui demanderait un certificat et afficherait des alertes dans les navigateurs).
+  Le mot de passe est protégé là où il est stocké, mais il passe en clair sur le Wi-Fi au
+  moment de la connexion : choisir un mot de passe propre au launcher, pas celui de la
+  messagerie.
+- **Ne pas exposer le port 80 du Pi sur Internet** (pas de redirection de port sur la box).
 
 ## Dépannage
 

@@ -5,7 +5,7 @@
   "port": 80,
   "port_secours": 8090,
   "nom_mdns": "launcher",
-  "verification_maj_heures": 6,
+  "verification_maj_heures": 0,
 
   "outils": [
     {

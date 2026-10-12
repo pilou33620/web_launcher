@@ -38,6 +38,7 @@ function toast(texte, erreur = false) {
 async function poster(url) {
   const r = await fetch(url, { method: "POST", headers: { "X-Launcher": "1" } });
   const d = await r.json().catch(() => ({}));
+  if (r.status === 401) location.replace("/connexion.html");
   if (!r.ok) throw new Error(d.erreur || "Erreur " + r.status);
   return d;
 }
@@ -69,6 +70,8 @@ const ilYa = (s) => (s < 60 ? "à l'instant" : "il y a " + duree(s));
 function rendreEntete() {
   const l = etat.launcher;
   $("#sous-titre").textContent = `${l.nom_machine} · ${l.ip || "hors réseau"}`;
+  $("#sans-compte").hidden = l.compte;
+  $("#deconnexion").hidden = !l.compte;
   const html = l.adresses.map((a) => `
     <a class="adresse" href="${echap(a.url)}">
       <small>${echap(a.type)}</small><code>${echap(a.url.replace(/^http:\/\//, "").replace(/\/$/, ""))}</code>
@@ -223,6 +226,7 @@ function rendre() {
 async function actualiser() {
   try {
     const r = await fetch("/api/etat", { cache: "no-store" });
+    if (r.status === 401) return location.replace("/connexion.html");
     etat = await r.json();
     rendre();
   } catch (e) {
@@ -323,6 +327,11 @@ document.addEventListener("click", async (ev) => {
     actualiser();
   }
 });
+
+$("#deconnexion").onclick = async () => {
+  await poster("/api/deconnexion").catch(() => {});
+  location.replace("/connexion.html");
+};
 
 $("#verifier-tout").onclick = async () => {
   try { await poster("/api/verifier_tout"); toast("Recherche des mises à jour sur GitHub…"); }

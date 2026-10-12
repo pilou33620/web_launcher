@@ -25,6 +25,7 @@ async function poster(url, corps) {
     body: corps ? JSON.stringify(corps) : undefined,
   });
   const d = await r.json().catch(() => ({}));
+  if (r.status === 401) location.replace("/connexion.html");
   if (!r.ok) throw new Error(d.erreur || "Erreur " + r.status);
   return d;
 }
@@ -124,6 +125,7 @@ async function lire() {
     // plusieurs lots de suite si l'outil a beaucoup écrit
     for (let tour = 0; tour < 8; tour++) {
       const r = await fetch(`/api/console/${id}?depuis=${e.position}`, { cache: "no-store" });
+      if (r.status === 401) return location.replace("/connexion.html");
       const d = await r.json();
       if (d.position < e.position) { e.lignes = [""]; e.colonne = 0; }   // journal renouvelé
       if (d.texte) ecrire(e, d.texte);
@@ -144,6 +146,7 @@ async function lire() {
 async function actualiserOutils() {
   try {
     const r = await fetch("/api/etat", { cache: "no-store" });
+    if (r.status === 401) return location.replace("/connexion.html");
     outils = (await r.json()).outils;
     if (!actif) choisir(location.hash.slice(1));
     else rendreOnglets();

@@ -20,12 +20,18 @@
   <div class="adresses" id="adresses"></div>
 </header>
 
+<div class="alerte" id="sans-compte" hidden>
+  Aucun mot de passe : tout appareil du réseau peut piloter les outils et lire leurs terminaux.
+  Sur le Raspberry Pi : <code>python3 launcher.py --compte</code>
+</div>
+
 <section class="barre">
   <span class="etiquette">01 / Web tools</span>
   <span class="etiquette" id="compte"></span>
   <span class="espace"></span>
   <button class="lien" data-terminal="">Terminaux ↗</button>
   <button class="lien" id="verifier-tout">Vérifier les mises à jour</button>
+  <button class="lien" id="deconnexion" hidden>Déconnexion</button>
 </section>
 
 <main class="grille" id="grille"></main>

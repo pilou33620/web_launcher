@@ -47,6 +47,14 @@ for ancien in gamelles web_conquete; do
 done
 
 echo
+echo "== Compte (identifiant et mot de passe de la page web)"
+if [ -f "$DIR/compte.local.json" ]; then
+  echo "   déjà créé (le changer : python3 launcher.py --compte)."
+else
+  until "$PY" "$DIR/launcher.py" --compte; do echo "   Recommencer."; done
+fi
+
+echo
 echo "== Service $SERVICE"
 sudo tee "$UNIT" > /dev/null <<UNITEOF
 [Unit]

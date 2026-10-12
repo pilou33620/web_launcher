@@ -2,6 +2,9 @@
 config.local.json
 etat.local.json
 etat.local.json.tmp
+compte.local.json
+sessions.local.json
+*.local.json.tmp
 journaux/
 
 # Python

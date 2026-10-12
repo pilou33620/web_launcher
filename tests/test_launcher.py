@@ -14,7 +14,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lanceur import config, reseau  # noqa: E402
+from lanceur import compte, config, reseau  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire, OccupeErreur  # noqa: E402
 
 SERVEUR = """import http.server, sys
@@ -186,6 +186,85 @@ class FauxOutil(unittest.TestCase):
         self.assertTrue(attendre(lambda: (self.g._actualiser(self.o), self.o.pid is None)[1]))
         self.assertEqual(self.o.phase, "arrete")
         self.assertFalse(self.o.voulu)
+
+
+class Compte(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        self.fichier, self.sessions = os.path.join(tmp, "compte.json"), os.path.join(tmp, "sessions.json")
+        saisies = iter(["pilou", "court", "correct horse", "autre chose", "correct horse", "correct horse"])
+        compte.creer_compte(self.fichier, self.sessions, saisir=lambda _: next(saisies),
+                            secret=lambda _: next(saisies), ecrire=lambda _: None)
+        self.g = compte.Gardien(self.fichier, self.sessions)
+
+    def test_mot_de_passe_jamais_en_clair(self):
+        with open(self.fichier) as f:
+            contenu = f.read()
+        self.assertNotIn("correct horse", contenu)
+        self.assertEqual(os.stat(self.fichier).st_mode & 0o777, 0o600)
+
+    def test_connexion_sessions_et_blocage(self):
+        jeton, erreur = self.g.verifier("Pilou", "correct horse", "10.0.0.1")
+        self.assertIsNone(erreur)
+        self.assertTrue(self.g.session_valide(jeton))
+        with open(self.sessions) as f:
+            self.assertNotIn(jeton, f.read())          # seule l'empreinte est gardée
+        self.assertTrue(compte.Gardien(self.fichier, self.sessions).session_valide(jeton))
+        self.g.fermer(jeton)
+        self.assertFalse(self.g.session_valide(jeton))
+        for _ in range(compte.ESSAIS):
+            self.assertIsNone(self.g.verifier("pilou", "faux", "10.0.0.2")[0])
+        # adresse bloquée, même avec le bon mot de passe ; les autres adresses non
+        self.assertIsNone(self.g.verifier("pilou", "correct horse", "10.0.0.2")[0])
+        self.assertIsNotNone(self.g.verifier("pilou", "correct horse", "10.0.0.3")[0])
+        self.assertIsNone(self.g.verifier("autre", "correct horse", "10.0.0.4")[0])
+
+    def test_serveur_protege(self):
+        import threading
+        import urllib.error
+        import urllib.request
+        from lanceur import serveur
+        serveur.Lanceur.gardien = self.g
+        serveur.Lanceur.gestionnaire = Gestionnaire({"dossier_outils": "/nulle-part", "outils": []},
+                                                    ecrire=lambda t: None)
+        serveur.Lanceur.infos = {"port": 0}
+        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.shutdown)
+        base = "http://127.0.0.1:%d" % httpd.server_address[1]
+
+        class SansRedirection(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a):
+                return None
+        ouvrir = urllib.request.build_opener(SansRedirection).open
+
+        def statut(chemin, donnees=None, cookie=None):
+            req = urllib.request.Request(base + chemin, data=donnees, headers={"X-Launcher": "1"})
+            if cookie:
+                req.add_header("Cookie", cookie)
+            try:
+                r = ouvrir(req, timeout=10)
+                return r.status, r.headers
+            except urllib.error.HTTPError as e:
+                return e.code, e.headers
+        self.assertEqual(statut("/")[0], 302)
+        self.assertEqual(statut("/console.html")[0], 302)
+        self.assertEqual(statut("/api/etat")[0], 401)
+        self.assertEqual(statut("/api/journal/x")[0], 401)
+        self.assertEqual(statut("/api/verifier_tout", b"")[0], 401)
+        self.assertEqual(statut("/connexion.html")[0], 200)
+        self.assertEqual(statut("/api/connexion", b'{"login":"pilou","mot_de_passe":"non"}')[0], 401)
+        code, entetes = statut("/api/connexion", b'{"login":"pilou","mot_de_passe":"correct horse"}')
+        self.assertEqual(code, 200)
+        biscuit = entetes["Set-Cookie"]
+        self.assertIn("HttpOnly", biscuit)
+        self.assertIn("SameSite=Strict", biscuit)
+        cookie = biscuit.split(";")[0]
+        self.assertEqual(statut("/api/etat", cookie=cookie)[0], 200)
+        self.assertEqual(statut("/", cookie=cookie)[0], 200)
+        statut("/api/deconnexion", b"", cookie=cookie)
+        self.assertEqual(statut("/api/etat", cookie=cookie)[0], 401)
 
 
 class Configuration(unittest.TestCase):

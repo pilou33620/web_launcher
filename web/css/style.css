@@ -202,3 +202,30 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
   .pied { margin: 18px 16px 0; }
   .barre { flex-wrap: wrap; }
 }
+
+/* -- connexion -------------------------------------------------------- */
+.page-connexion { display: grid; place-items: center; padding: 16px; }
+.connexion {
+  width: min(380px, 100%); display: flex; flex-direction: column; gap: 16px;
+  padding: 28px; background: var(--carte); border: 1px solid var(--trait);
+}
+.connexion .marque { margin-bottom: 6px; }
+.connexion label {
+  display: flex; flex-direction: column; gap: 6px;
+  font: 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--doux);
+}
+.connexion input {
+  padding: 11px 12px; background: #08090b; color: var(--texte); border: 1px solid var(--trait);
+  font: 15px var(--sans); letter-spacing: 0; text-transform: none; outline: none;
+}
+.connexion input:focus { border-color: var(--info); }
+.connexion .bouton { flex: none; }
+.connexion .aide { margin: 0; font-size: 12.5px; color: var(--faible); }
+.connexion .aide code { font: 12px var(--mono); color: var(--doux); }
+
+.alerte {
+  margin: 14px 24px 0; padding: 10px 14px; border: 1px solid var(--erreur); color: var(--texte);
+  background: color-mix(in srgb, var(--erreur) 14%, var(--carte)); font-size: 14px;
+}
+.alerte code { font: 13px var(--mono); }
+@media (max-width: 640px) { .alerte { margin: 14px 16px 0; } }

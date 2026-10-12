@@ -14,7 +14,7 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lanceur import config, reseau, serveur  # noqa: E402
+from lanceur import compte, config, reseau, serveur  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire  # noqa: E402
 
 
@@ -23,7 +23,11 @@ def main():
     ap.add_argument("--port", type=int, help="port d'écoute (défaut : outils.json, 80)")
     ap.add_argument("--dossier", help="dossier des web tools (défaut : ~/Documents)")
     ap.add_argument("--sans-mdns", action="store_true", help="ne pas annoncer launcher.local")
+    ap.add_argument("--compte", action="store_true",
+                    help="créer ou changer l'identifiant et le mot de passe, puis quitter")
     args = ap.parse_args()
+    if args.compte:
+        return 0 if compte.creer_compte() else 1
 
     conf = config.charger()
     if args.dossier:
@@ -44,6 +48,10 @@ def main():
     alias.demarrer()
 
     serveur.Lanceur.gestionnaire = gestionnaire
+    serveur.Lanceur.gardien = compte.Gardien()
+    if not serveur.Lanceur.gardien.actif:
+        print("  [!] Aucun mot de passe : tout appareil du réseau peut tout faire. "
+              "Créer le compte : python3 launcher.py --compte", flush=True)
     serveur.Lanceur.alias = alias
     serveur.Lanceur.relancer = staticmethod(lambda: (alias.arreter(), serveur.relancer_processus()))
     serveur.Lanceur.infos = {"port": port, "nom_mdns": conf.get("nom_mdns"),
@@ -69,4 +77,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

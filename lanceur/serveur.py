@@ -7,13 +7,17 @@ import re
 import sys
 import threading
 import time
+from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import config, depot, reseau
+from . import compte, config, depot, reseau
 from .gestionnaire import OccupeErreur
 
 DOSSIER_WEB = os.path.join(config.RACINE, "web")
+COOKIE = "launcher_session"
+# Ouvert sans connexion : la page de connexion et ce qu'elle charge.
+PUBLIC = {"/connexion.html", "/js/connexion.js"}
 
 
 class Lanceur(SimpleHTTPRequestHandler):
@@ -21,6 +25,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     infos = {}                      # adresses, nom mDNS... (rempli par main)
     alias = None
     relancer = None                 # fonction : redémarre le launcher (après sa mise à jour)
+    gardien = None                  # compte.Gardien : identifiant, mot de passe, sessions
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -55,16 +60,39 @@ class Lanceur(SimpleHTTPRequestHandler):
             return False
         return True
 
+    # -- connexion -------------------------------------------------------
+
+    def _jeton_session(self):
+        try:
+            biscuit = SimpleCookie(self.headers.get("Cookie") or "")
+        except CookieError:
+            return None
+        return biscuit[COOKIE].value if COOKIE in biscuit else None
+
+    def connecte(self):
+        """Sans compte créé, tout le monde entre (la page le signale en rouge)."""
+        return not self.gardien.actif or self.gardien.session_valide(self._jeton_session())
+
+    def _rediriger(self, cible):
+        self.send_response(302)
+        self.send_header("Location", cible)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         super().end_headers()
 
     # -- réponses -------------------------------------------------------
 
-    def _json(self, donnees, statut=200):
+    def _json(self, donnees, statut=200, cookie=None):
         corps = json.dumps(donnees, ensure_ascii=False).encode("utf-8")
         self.send_response(statut)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(corps)))
         self.end_headers()
@@ -90,7 +118,7 @@ class Lanceur(SimpleHTTPRequestHandler):
         if infos.get("nom_mdns") and self.alias and self.alias.etat in ("annoncé", "nom de la machine"):
             adresses.append({"type": "Nom", "url": "http://%s.local%s/" % (infos["nom_mdns"], suffixe)})
         adresses.append({"type": "Machine", "url": "http://%s.local%s/" % (reseau.nom_machine(), suffixe)})
-        infos.update(adresses=adresses, mdns=self.alias.etat if self.alias else "désactivé",
+        infos.update(adresses=adresses, compte=self.gardien.actif, mdns=self.alias.etat if self.alias else "désactivé",
                      version=depot.version(config.RACINE), maj=g.launcher_maj,
                      action=g.launcher_action, heure=int(time.time()))
         return {"launcher": infos, "outils": g.etat()}
@@ -99,6 +127,14 @@ class Lanceur(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         url = urlparse(self.path)
+        if url.path in PUBLIC or url.path.startswith(("/css/", "/icones/")):
+            if url.path == "/connexion.html" and self.gardien.actif and self.connecte():
+                return self._rediriger("/")
+            return super().do_GET()
+        if not self.connecte():
+            if url.path.startswith("/api/"):
+                return self._json({"erreur": "connexion requise"}, 401)
+            return self._rediriger("/connexion.html")
         if url.path == "/api/etat":
             return self._json(self.etat())
         if url.path.startswith("/api/journal/"):
@@ -135,6 +171,13 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": "requête trop grande"}, 413)
         corps = self.rfile.read(longueur) if longueur else b""
         morceaux = urlparse(self.path).path.strip("/").split("/")
+        if morceaux == ["api", "connexion"]:
+            return self._connexion(corps)
+        if morceaux == ["api", "deconnexion"]:
+            self.gardien.fermer(self._jeton_session())
+            return self._json({"ok": True}, cookie="%s=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict" % COOKIE)
+        if not self.connecte():
+            return self._json({"erreur": "connexion requise"}, 401)
         g = self.gestionnaire
         try:
             if morceaux[:2] == ["api", "console"] and len(morceaux) == 3:
@@ -171,6 +214,18 @@ class Lanceur(SimpleHTTPRequestHandler):
         except OccupeErreur as exc:
             return self._json({"erreur": str(exc)}, 409)
         return self._json({"erreur": "route inconnue"}, 404)
+
+    def _connexion(self, corps):
+        try:
+            d = json.loads(corps.decode("utf-8") or "{}")
+            login, mdp = str(d.get("login", ""))[:200], str(d.get("mot_de_passe", ""))[:1000]
+        except (ValueError, AttributeError):
+            return self._json({"erreur": "demande illisible"}, 400)
+        jeton, erreur = self.gardien.verifier(login, mdp, self.client_address[0])
+        if erreur:
+            return self._json({"erreur": erreur}, 401)
+        return self._json({"ok": True}, cookie="%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict"
+                          % (COOKIE, jeton, compte.DUREE_SESSION))
 
     def _maj_launcher(self):
         g = self.gestionnaire
