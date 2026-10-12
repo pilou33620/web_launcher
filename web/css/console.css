@@ -1,0 +1,47 @@
+.page-console {
+  height: 100vh; height: 100dvh; padding: 0; display: flex; flex-direction: column; overflow: hidden;
+}
+
+.onglets {
+  display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--trait); background: var(--carte); flex: none;
+}
+.onglet {
+  display: flex; align-items: center; gap: 8px; padding: 12px 18px; background: none; border: 0;
+  border-right: 1px solid var(--trait); border-bottom: 2px solid transparent; white-space: nowrap;
+  font: 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--doux);
+}
+.onglet:hover { color: var(--texte); }
+.onglet[aria-selected="true"] { color: var(--texte); border-bottom-color: var(--accent); background: var(--carte-2); }
+.onglet .point { width: 7px; height: 7px; border-radius: 50%; background: var(--faible); }
+.onglet .point.ok { background: var(--ok); }
+.onglet .point.attente { background: var(--attente); animation: clignote 1s infinite; }
+.onglet .point.erreur { background: var(--erreur); }
+.onglet .question { color: var(--attente); }
+
+.bandeau {
+  flex: none; padding: 10px 18px; font-size: 14px; background: color-mix(in srgb, var(--attente) 16%, var(--carte));
+  border-bottom: 1px solid var(--attente); color: var(--texte); display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+}
+.bandeau[hidden] { display: none; }
+.bandeau.eteint { background: var(--carte); border-color: var(--trait); color: var(--doux); }
+.bandeau .bouton { flex: none; min-width: 0; padding: 6px 12px; }
+
+.ecran {
+  flex: 1; margin: 0; padding: 14px 18px; overflow: auto; background: #08090b; color: #d6dae2;
+  font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; outline: none;
+}
+.ecran .note { color: var(--faible); }
+
+.saisie {
+  flex: none; display: flex; gap: 8px; align-items: center; padding: 10px 12px;
+  border-top: 1px solid var(--trait); background: var(--carte); flex-wrap: wrap;
+}
+.saisie .invite { font: 700 16px var(--mono); color: var(--accent, var(--info)); padding: 0 4px; }
+.saisie input[type="text"] {
+  flex: 1 1 220px; min-width: 0; padding: 10px 12px; background: #08090b; color: var(--texte);
+  border: 1px solid var(--trait); font: 14px var(--mono); outline: none;
+}
+.saisie input[type="text"]:focus { border-color: var(--accent, var(--info)); }
+.saisie .bouton { flex: none; min-width: 0; }
+.defile { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--doux); }
+.saisie[aria-disabled="true"] input[type="text"], .saisie[aria-disabled="true"] .bouton { opacity: .45; }

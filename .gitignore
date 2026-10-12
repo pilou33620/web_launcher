@@ -1,0 +1,12 @@
+# Propre à ce Raspberry Pi
+config.local.json
+etat.local.json
+etat.local.json.tmp
+compte.local.json
+sessions.local.json
+*.local.json.tmp
+journaux/
+
+# Python
+__pycache__/
+*.py[cod]

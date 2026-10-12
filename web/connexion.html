@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Connexion · Web Launcher</title>
+<link rel="icon" href="/icones/launcher.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="page-connexion">
+<form class="connexion" id="formulaire">
+  <div class="marque">
+    <img src="/icones/launcher.svg" alt="" width="40" height="40">
+    <div>
+      <h1>Web<span>Launcher</span></h1>
+      <p>Connexion</p>
+    </div>
+  </div>
+  <label>Identifiant
+    <input id="login" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+  </label>
+  <label>Mot de passe
+    <input id="mdp" name="password" type="password" autocomplete="current-password" required>
+  </label>
+  <p class="message erreur" id="erreur" role="alert"></p>
+  <button class="bouton" type="submit" id="valider">Se connecter</button>
+  <p class="aide">Mot de passe oublié : sur le Raspberry Pi, <code>python3 launcher.py --compte</code></p>
+</form>
+<script src="/js/connexion.js"></script>
+</body>
+</html>
