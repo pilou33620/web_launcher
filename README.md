@@ -162,16 +162,32 @@ gh auth setup-git      # git utilise ce compte pour cloner et mettre à jour
 
 Sans connexion, la carte affiche « GitHub refuse l'accès (dépôt privé ?) ».
 
-## Réglages propres à ce Pi
+## Réglages propres à ce Pi (facultatif)
 
-`outils.json` (suivi par git) décrit les outils. Pour changer un réglage sans le modifier,
-créer `config.local.json` (ignoré par git) avec seulement ce qui change :
+**Rien à faire si tout vous convient** : le launcher fonctionne sans ce qui suit.
+
+Les réglages par défaut sont dans `outils.json` : la liste des outils (dépôt GitHub, port,
+commande de lancement), le port du launcher (80), le dossier `~/Documents`, la vérification
+GitHub toutes les 6 h. **Ne pas modifier ce fichier sur le Pi** : il est suivi par git, et
+une fois modifié, il bloquerait les mises à jour du launcher.
+
+Pour changer un réglage, créer à côté un fichier `config.local.json` (jamais envoyé sur
+GitHub, jamais touché par les mises à jour) avec **seulement ce qui change**. Exemples :
+
+| Besoin | Contenu de `config.local.json` |
+|---|---|
+| Un port est déjà pris : web_menu sur 8000 au lieu de 8080 | `{ "outils": [ { "id": "web_menu", "port": 8000 } ] }` |
+| Cacher un outil qu'on n'utilise pas | `{ "outils": [ { "id": "web_conquete", "masque": true } ] }` |
+| Vérifier GitHub toutes les 12 h au lieu de 6 | `{ "verification_maj_heures": 12 }` |
+| Ne vérifier GitHub que sur clic (la *Mise à jour auto* ne fait alors plus rien) | `{ "verification_maj_heures": 0 }` |
+| Un autre nom que `launcher.local` (ici `maison.local`) | `{ "nom_mdns": "maison" }` |
+| Ne pas annoncer de nom `.local` | `{ "nom_mdns": null }` |
+
+Plusieurs réglages à la fois, dans un seul fichier :
 
 ```json
 {
-  "port": 80,
-  "dossier_outils": "~/Documents",
-  "verification_maj_heures": 6,
+  "verification_maj_heures": 12,
   "outils": [
     { "id": "web_menu", "port": 8000 },
     { "id": "web_conquete", "masque": true }
@@ -179,14 +195,16 @@ créer `config.local.json` (ignoré par git) avec seulement ce qui change :
 }
 ```
 
-- un `id` existant : remplace ces champs (port, commande...) ; `"masque": true` cache l'outil ;
-- un nouvel `id` : ajoute un outil (`nom`, `depot`, `dossiers`, `port`, `commande` avec
-  `{python}` et `{port}`, `venv`, `accent`...). Voir `outils.json` pour des exemples ;
-- `"nom_mdns": "launcher"` : le nom annoncé (`launcher.local`), `null` pour ne rien annoncer ;
-- `"verification_maj_heures": 6` (défaut) : fréquence de la vérification automatique, en
-  heures ; `0` : seulement quand on clique (la *Mise à jour auto* ne fait alors plus rien).
+Ajouter un nouveau web tool : une entrée avec un nouvel `id` dans `"outils"` (`nom`,
+`depot`, `dossiers`, `port`, `commande` avec `{python}` et `{port}`...), sur le modèle de
+ceux de `outils.json`.
 
-Puis `sudo systemctl restart web_launcher`.
+Ensuite, redémarrer le launcher pour qu'il relise le fichier (les outils continuent de
+tourner) :
+
+```bash
+sudo systemctl restart web_launcher
+```
 
 ## Fichiers
 
