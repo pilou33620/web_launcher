@@ -22,6 +22,7 @@ DELAI_DEMARRAGE = 90                    # s pour que le port réponde
 RELANCES_MAX = 3                        # relances automatiques après un plantage...
 FENETRE_RELANCES = 600                  # ...dans cette fenêtre (s)
 DUREE_CODE = 600                        # un code d'appairage WEB·SUITE vit 10 min
+CONSOLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console.py")
 
 
 class OccupeErreur(RuntimeError):
@@ -59,6 +60,8 @@ class Outil:
         self.relances = []
         self.maj = {"nombre": 0, "nouveautes": [], "modifies": [], "verifie_le": None, "erreur": None}
         self.code = None                    # (code d'appairage, vu le)
+        self.attend_saisie = False          # une question attend une réponse dans le terminal
+        self.ctrl_c_le = 0.0                # Ctrl+C envoyé depuis le terminal de la page
         self._version = (0.0, None)
 
     def version(self):
@@ -105,6 +108,15 @@ class Outil:
     @property
     def journal(self):
         return os.path.join(config.JOURNAUX, self.id + ".log")
+
+    @property
+    def fifo(self):
+        """Entrée du terminal de l'outil (lanceur/console.py)."""
+        return os.path.join(config.JOURNAUX, self.id + ".entree")
+
+    @property
+    def avec_terminal(self):
+        return LINUX and self.conf.get("terminal", True)
 
     def depots(self):
         """Le dépôt de l'outil puis ses sous-dépôts installés (WEB·SUITE : WEB_CAO...)."""
@@ -203,12 +215,14 @@ class Gestionnaire:
             return True
         return False
 
-    def _ouvrir_journal(self, o):
-        try:
-            if os.path.getsize(o.journal) > TAILLE_JOURNAL:
-                os.replace(o.journal, o.journal + ".1")
-        except OSError:
-            pass
+    def _ouvrir_journal(self, o, rotation=False):
+        # Rotation seulement au démarrage : le terminal d'un outil en marche écrit dans ce fichier.
+        if rotation:
+            try:
+                if os.path.getsize(o.journal) > TAILLE_JOURNAL:
+                    os.replace(o.journal, o.journal + ".1")
+            except OSError:
+                pass
         return open(o.journal, "a", encoding="utf-8", errors="replace")
 
     def _noter(self, o, texte):
@@ -236,7 +250,10 @@ class Gestionnaire:
                 return
             raise RuntimeError("Le port %d est déjà pris par un autre programme." % o.port)
         cmd = o.remplir(o.conf["commande"])
+        self._ouvrir_journal(o, rotation=True).close()
         self._noter(o, "démarrage : " + " ".join(cmd))
+        if o.avec_terminal:
+            cmd = [sys.executable, CONSOLE, o.fifo, o.journal, "--"] + cmd
         journal = self._ouvrir_journal(o)
         try:
             o.proc = subprocess.Popen(cmd, cwd=o.dossier, stdin=subprocess.DEVNULL, stdout=journal,
@@ -245,7 +262,7 @@ class Gestionnaire:
         finally:
             journal.close()
         o.pid, o.lance_le, o.code_sortie = o.proc.pid, time.time(), None
-        o.arret_demande, o.code = False, None
+        o.arret_demande, o.code, o.attend_saisie = False, None, False
         o.phase, o.message = "demarrage", "Démarrage…"
         o.voulu = True
         self.sauver()
@@ -272,6 +289,16 @@ class Gestionnaire:
 
     @staticmethod
     def _signal(pid, sig):
+        if sig == signal.SIGKILL and LINUX:         # l'outil derrière son terminal (console.py)
+            try:
+                with open("/proc/%d/task/%d/children" % (pid, pid)) as f:
+                    for enfant in f.read().split():
+                        try:
+                            os.killpg(int(enfant), sig)
+                        except (ProcessLookupError, PermissionError):
+                            pass
+            except OSError:
+                pass
         try:
             if os.getpgid(pid) == pid:      # notre outil : toute sa session (ses sous-processus)
                 os.killpg(pid, sig)
@@ -446,7 +473,13 @@ class Gestionnaire:
                 code = o.code_sortie
                 o.pid, o.proc = None, None
                 self.sauver()
-                if o.arret_demande:
+                o.attend_saisie = False
+                # 0, ou juste après un Ctrl+C : arrêté volontairement, pas de relance
+                if o.arret_demande or code == 0 or time.time() - o.ctrl_c_le < 15:
+                    if not o.arret_demande:
+                        o.voulu = False
+                        self.sauver()
+                        self._noter(o, "s'est arrêté normalement")
                     o.phase, o.message = "arrete", ""
                     return
                 self._noter(o, "s'est arrêté tout seul (code %s)" % code)
@@ -473,6 +506,7 @@ class Gestionnaire:
                 o.phase = "demarrage"
                 o.message = "Ne répond pas sur le port %d, voir le journal." % o.port
             self._lire_code(o)
+            o.attend_saisie = o.avec_terminal and self._question_en_attente(o)
         elif not o.action:
             if reseau.port_ouvert(o.port):
                 if not self._adopter_par_port(o):
@@ -480,6 +514,38 @@ class Gestionnaire:
                     o.message = "Port %d occupé par un programme lancé hors du launcher." % o.port
             elif o.phase in ("en_marche", "demarrage", "externe"):
                 o.phase, o.message = "arrete", ""
+
+    def _question_en_attente(self, o):
+        """La dernière ligne du terminal est une question restée sans réponse depuis 2 s :
+        l'outil attend une saisie (ex. WEB·SUITE : « Se connecter maintenant ? [O/n] »)."""
+        try:
+            if time.time() - os.path.getmtime(o.journal) < 2:
+                return False
+            with open(o.journal, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - 300))
+                fin = f.read().decode("utf-8", "replace")
+        except OSError:
+            return False
+        derniere = fin.rsplit("\n", 1)[-1].strip()
+        return bool(derniere) and (derniere.endswith((":", "?", "]", ">")) or "[o/n" in derniere.lower())
+
+    def envoyer(self, oid, texte):
+        """Saisie au clavier dans le terminal de l'outil. Lève KeyError, RuntimeError."""
+        o = self.par_id[oid]
+        if not o.avec_terminal or o.pid is None:
+            raise RuntimeError("%s n'a pas de terminal ouvert." % o.conf["nom"])
+        try:
+            fd = os.open(o.fifo, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError:
+            raise RuntimeError("Terminal indisponible (outil lancé hors du launcher ou avant son terminal).")
+        try:
+            os.write(fd, texte.encode("utf-8"))
+        finally:
+            os.close(fd)
+        if "\x03" in texte:
+            o.ctrl_c_le = time.time()
+        o.attend_saisie = False
 
     def _lire_code(self, o):
         motif = o.conf.get("code_appairage")
@@ -539,6 +605,7 @@ class Gestionnaire:
                 "voulu": o.voulu, "depuis": int(o.lance_le) if o.pid else None,
                 "version": o.version(),
                 "maj": o.maj, "code_appairage": code,
+                "terminal": o.avec_terminal, "attend_saisie": o.attend_saisie,
                 "sous_depots": [os.path.basename(d) for d in o.depots()[1:]] if o.installe else [],
             })
         return liste

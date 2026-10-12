@@ -72,8 +72,8 @@ Une carte par outil :
 | En marche | **Ouvrir ↗**, **Arrêter** |
 | Mise à jour disponible | **Mettre à jour** (avec la liste des nouveautés) |
 
-Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour maintenant, voir le
-**journal** de l'outil (sa sortie console), copier l'adresse.
+Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour maintenant, ouvrir son
+**terminal**, voir le **journal**, copier l'adresse.
 
 - **Toujours allumé** : un outil allumé reste allumé après un redémarrage du Pi (badge
   *Auto*). **Arrêter** le retire. S'il plante, il est relancé (3 fois en 10 minutes au plus,
@@ -87,6 +87,30 @@ Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour mainten
   `--no-update`, `--sans-maj`) : le launcher est le seul à mettre à jour, et prévient.
 - Le **launcher lui-même** se met à jour depuis le pied de page. Il redémarre en quelques
   secondes ; les outils continuent de tourner et sont retrouvés.
+
+## Terminaux
+
+**Terminaux ↗** (en haut de la page, ou menu **…** → *Terminal*) ouvre une fenêtre à part
+avec un onglet par outil : tout ce que l'outil affiche, en direct, comme dans une fenêtre de
+terminal, et une ligne pour lui **répondre** (Entrée pour envoyer) et un bouton **Ctrl+C**.
+
+Chaque outil tourne dans un vrai terminal (pseudo-terminal tenu par `lanceur/console.py`) :
+il peut donc poser ses questions au démarrage. Quand une question attend une réponse,
+la carte affiche **Attend une réponse ↗** et la fenêtre Terminaux le signale. Exemple :
+WEB·SUITE, tant que le Pi n'est pas connecté à GitHub, demande à chaque démarrage
+« Se connecter maintenant ? [O/n, j = ne plus demander] » : répondre `o` pour se connecter
+(le code `gh` s'affiche dans le terminal), `n` pour plus tard, `j` pour ne plus être
+interrogé. Tant que la question est sans réponse, WEB·SUITE ne démarre pas.
+
+Le terminal survit aux redémarrages du launcher. Un Ctrl+C arrête la plupart des outils :
+l'arrêt est alors considéré comme voulu (pas de relance automatique).
+
+**Sécurité** : ce n'est **pas** un shell. On ne peut ni lancer de commande sur le Pi ni
+ouvrir bash : seulement écrire dans l'entrée de l'outil déjà lancé (texte, Entrée, Tab,
+effacement, Ctrl+C, Ctrl+D ; pas de Ctrl+Z ni de séquences d'échappement). Mais tout
+appareil du réseau local peut lire ce que les outils affichent et répondre à leurs
+questions. Le jeton réseau de WEB·SUITE est masqué (`jeton=•••`). Pour un outil sans
+terminal : `"terminal": false` dans `config.local.json`.
 
 ## Particularités des outils
 
@@ -157,11 +181,12 @@ Puis `sudo systemctl restart web_launcher`.
 
 ```
 launcher.py              point d'entrée
-lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action>, /api/journal/<id>)
+lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action>, /api/journal/<id>, /api/console/<id>)
 lanceur/gestionnaire.py  démarrage, arrêt, reprise, installation, mises à jour
 lanceur/depot.py         git (fetch, pull --ff-only, clone)
 lanceur/reseau.py        IP, ports, annonce mDNS de launcher.local
-web/                     la page (HTML, CSS, JS, sans dépendance)
+lanceur/console.py       terminal d'un outil (pseudo-terminal, saisie via journaux/<id>.entree)
+web/                     les pages (launcher, Terminaux), HTML, CSS, JS sans dépendance
 outils.json              catalogue des outils
 installer.sh             installation du service sur le Pi
 journaux/<id>.log        sortie de chaque outil (créé tout seul, ignoré par git)

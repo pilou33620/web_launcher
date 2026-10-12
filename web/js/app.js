@@ -134,6 +134,7 @@ function menuPlus(o) {
         <button data-action="redemarrer"${d(o.installe && !occupe && o.phase !== "externe")}>Redémarrer</button>
         <button data-action="verifier"${d(o.installe && !occupe)}>Vérifier la mise à jour</button>
         <button data-action="mettre_a_jour"${d(o.installe && !occupe)}>Mettre à jour maintenant</button>
+        <button data-terminal="${o.id}">Terminal ↗</button>
         <button data-journal="${o.id}">Voir le journal</button>
         <button data-copier="${echap(urlOutil(o))}">Copier l'adresse</button>
       </div>
@@ -146,6 +147,7 @@ function carte(o, i) {
   if (!o.installe) statuts.push(`<span class="statut info">Disponible à l'installation</span>`);
   else statuts.push(`<span class="statut ${classe}">${libelle}</span>`);
   if (o.maj && o.maj.nombre) statuts.push(`<span class="statut maj">${o.maj.nombre} mise${o.maj.nombre > 1 ? "s" : ""} à jour</span>`);
+  if (o.attend_saisie) statuts.push(`<button class="statut maj" data-terminal="${o.id}" title="Ouvrir son terminal">Attend une réponse ↗</button>`);
   if (o.installe && o.voulu && o.pid) statuts.push(`<span class="statut eteint" title="Rallumé automatiquement au démarrage du Raspberry Pi">Auto</span>`);
 
   const v = o.version;
@@ -281,6 +283,14 @@ document.addEventListener("click", async (ev) => {
   }
   if (cible.dataset.menu) {
     menuOuvert = menuOuvert === cible.dataset.menu ? null : cible.dataset.menu;
+    rendre();
+    return;
+  }
+  if (cible.dataset.terminal !== undefined) {
+    // une seule fenêtre « Terminaux », réutilisée : l'onglet de l'outil y est choisi
+    menuOuvert = null;
+    const f = window.open("/console.html#" + cible.dataset.terminal, "terminaux", "popup=yes,width=1100,height=720");
+    if (f) f.focus();
     rendre();
     return;
   }

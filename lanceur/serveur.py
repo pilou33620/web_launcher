@@ -107,9 +107,21 @@ class Lanceur(SimpleHTTPRequestHandler):
                 return self._json({"erreur": "outil inconnu"}, 404)
             lignes = int(parse_qs(url.query).get("lignes", ["300"])[0])
             return self._texte(lire_fin(o.journal, lignes))
+        if url.path.startswith("/api/console/"):
+            o = self.gestionnaire.par_id.get(url.path.rsplit("/", 1)[1])
+            if o is None:
+                return self._json({"erreur": "outil inconnu"}, 404)
+            try:
+                depuis = int(parse_qs(url.query).get("depuis", ["-1"])[0])
+            except ValueError:
+                depuis = -1
+            position, texte = lire_depuis(o.journal, depuis)
+            return self._json({"position": position, "texte": texte, "pid": o.pid,
+                               "phase": o.phase, "attend_saisie": o.attend_saisie,
+                               "terminal": o.avec_terminal})
         if url.path.startswith("/api/"):
             return self._json({"erreur": "route inconnue"}, 404)
-        if url.path not in ("/", "/index.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
+        if url.path not in ("/", "/index.html", "/console.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
             return self.send_error(404)
         return super().do_GET()
 
@@ -119,11 +131,25 @@ class Lanceur(SimpleHTTPRequestHandler):
         if self.headers.get("X-Launcher") != "1":
             return self._json({"erreur": "requête refusée"}, 403)
         longueur = int(self.headers.get("Content-Length") or 0)
-        if longueur:
-            self.rfile.read(min(longueur, 4096))
+        if longueur > 8192:
+            return self._json({"erreur": "requête trop grande"}, 413)
+        corps = self.rfile.read(longueur) if longueur else b""
         morceaux = urlparse(self.path).path.strip("/").split("/")
         g = self.gestionnaire
         try:
+            if morceaux[:2] == ["api", "console"] and len(morceaux) == 3:
+                try:
+                    texte = json.loads(corps.decode("utf-8") or "{}").get("texte", "")
+                except (ValueError, AttributeError):
+                    return self._json({"erreur": "saisie illisible"}, 400)
+                texte = filtrer_saisie(str(texte))
+                if not texte:
+                    return self._json({"erreur": "saisie vide"}, 400)
+                try:
+                    g.envoyer(morceaux[2], texte)
+                except RuntimeError as exc:
+                    return self._json({"erreur": str(exc)}, 409)
+                return self._json({"ok": True})
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4:
                 g.lancer_action(morceaux[2], morceaux[3])
                 return self._json({"ok": True})
@@ -164,6 +190,50 @@ class Lanceur(SimpleHTTPRequestHandler):
         return self._json({"ok": True, "message": "Mis à jour, redémarrage du launcher…"})
 
 
+JETON = re.compile(r"jeton=[\w-]+")
+LOT_CONSOLE = 64 * 1024
+
+
+def masquer(texte):
+    # le jeton réseau de WEB·SUITE ouvre l'accès sans code d'appairage : jamais affiché
+    return JETON.sub("jeton=•••", texte)
+
+
+def filtrer_saisie(texte):
+    """Texte, Entrée, Tab, effacement et Ctrl+C / Ctrl+D seulement : pas de Ctrl+Z (suspendre
+    l'outil) ni de Ctrl+\\, ni de séquences d'échappement."""
+    permis = {"\r", "\n", "\t", "\x03", "\x04", "\x7f"}
+    return "".join(c for c in texte if c in permis or (c >= " " and c != "\x7f"))[:2000]
+
+
+def lire_depuis(chemin, depuis):
+    """(position, texte) : ce que le journal a reçu depuis la position (en octets).
+    depuis < 0, ou journal renouvelé : les derniers 64 Ko."""
+    try:
+        with open(chemin, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            taille = f.tell()
+            if depuis < 0 or depuis > taille:
+                depuis = max(0, taille - LOT_CONSOLE)
+            f.seek(depuis)
+            donnees = f.read(min(taille - depuis, LOT_CONSOLE))
+    except OSError:
+        return 0, ""
+    # pas de caractère UTF-8 coupé en deux : la fin incomplète attend le lot suivant
+    for recul in range(1, min(4, len(donnees)) + 1):
+        octet = donnees[-recul]
+        if octet & 0xC0 != 0x80:                    # premier octet d'un caractère
+            besoin = 4 if octet >= 0xF0 else 3 if octet >= 0xE0 else 2 if octet >= 0xC0 else 1
+            if besoin > recul:
+                donnees = donnees[:-recul]
+            break
+    # un jeton pas encore écrit en entier attend aussi : il ne doit jamais sortir à moitié
+    debut_ligne = donnees.rfind(b"\n") + 1
+    if b"jeton=" in donnees[debut_ligne:]:
+        donnees = donnees[:debut_ligne] if debut_ligne else donnees[:donnees.rfind(b"jeton=")]
+    return depuis + len(donnees), masquer(donnees.decode("utf-8", "replace"))
+
+
 def lire_fin(chemin, lignes):
     try:
         with open(chemin, "rb") as f:
@@ -172,9 +242,7 @@ def lire_fin(chemin, lignes):
             texte = f.read().decode("utf-8", "replace")
     except OSError:
         return "(journal vide)"
-    texte = "\n".join(texte.splitlines()[-max(1, min(lignes, 3000)):])
-    # le jeton réseau de WEB·SUITE ouvre l'accès sans code d'appairage : jamais affiché
-    return re.sub(r"jeton=[\w-]+", "jeton=•••", texte)
+    return masquer("\n".join(texte.splitlines()[-max(1, min(lignes, 3000)):]))
 
 
 def ouvrir(port, port_secours, ecrire=print):

@@ -163,6 +163,31 @@ class FauxOutil(unittest.TestCase):
         self.o.action = None
 
 
+    def test_terminal_question_et_reponse(self):
+        """L'outil tourne dans un terminal : on lit sa question et on lui répond depuis la page."""
+        with open(os.path.join(self.travail, "serveur.py"), "w") as f:
+            f.write("import sys\nnom = input('Votre nom ? ')\nprint('Bonjour', nom, sys.stdin.isatty())\n"
+                    + SERVEUR % "v1")
+        git(self.travail, "commit", "-q", "-am", "question")
+        git(self.travail, "push", "-q", "origin", "HEAD:main")
+        self.action("installer")
+        self.action("demarrer")
+        self.assertTrue(attendre(lambda: (self.g._actualiser(self.o), self.o.attend_saisie)[1], 10),
+                        "la question n'est pas vue")
+        self.assertFalse(reseau.port_ouvert(self.port))
+        self.g.envoyer("faux", "Pi\r")
+        self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
+        from lanceur.serveur import lire_depuis
+        position, texte = lire_depuis(self.o.journal, 0)
+        self.assertIn("Bonjour Pi True", texte)
+        self.assertEqual(position, os.path.getsize(self.o.journal))
+        # Ctrl+C : l'outil s'arrête normalement, il n'est pas relancé
+        self.g.envoyer("faux", "\x03")
+        self.assertTrue(attendre(lambda: (self.g._actualiser(self.o), self.o.pid is None)[1]))
+        self.assertEqual(self.o.phase, "arrete")
+        self.assertFalse(self.o.voulu)
+
+
 class Configuration(unittest.TestCase):
     def test_config_locale(self):
         tmp = tempfile.mkdtemp()

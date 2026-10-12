@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Terminaux · Web Launcher</title>
+<link rel="icon" href="/icones/launcher.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/console.css">
+</head>
+<body class="page-console">
+<nav class="onglets" id="onglets" role="tablist"></nav>
+
+<div class="bandeau" id="bandeau" hidden></div>
+
+<pre class="ecran" id="ecran" tabindex="0" aria-live="polite"></pre>
+
+<form class="saisie" id="saisie" autocomplete="off">
+  <span class="invite">›</span>
+  <input id="ligne" type="text" spellcheck="false" autocapitalize="off" placeholder="Réponse à envoyer à l'outil, puis Entrée">
+  <button type="submit" class="bouton">Envoyer</button>
+  <button type="button" class="bouton secondaire" id="ctrl-c" title="Interrompre (Ctrl+C) : arrête la plupart des outils">Ctrl+C</button>
+  <label class="defile"><input type="checkbox" id="suivre" checked> Suivre</label>
+</form>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/js/console.js"></script>
+</body>
+</html>
