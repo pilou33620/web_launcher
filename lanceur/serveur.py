@@ -71,7 +71,8 @@ class Lanceur(SimpleHTTPRequestHandler):
 
     def connecte(self):
         """Sans compte créé, tout le monde entre (la page le signale en rouge)."""
-        return not self.gardien.actif or self.gardien.session_valide(self._jeton_session())
+        self.login = self.gardien.utilisateur(self._jeton_session())
+        return self.login is not None or not self.gardien.actif
 
     def _rediriger(self, cible):
         self.send_response(302)
@@ -118,7 +119,10 @@ class Lanceur(SimpleHTTPRequestHandler):
         if infos.get("nom_mdns") and self.alias and self.alias.etat in ("annoncé", "nom de la machine"):
             adresses.append({"type": "Nom", "url": "http://%s.local%s/" % (infos["nom_mdns"], suffixe)})
         adresses.append({"type": "Machine", "url": "http://%s.local%s/" % (reseau.nom_machine(), suffixe)})
-        infos.update(adresses=adresses, compte=self.gardien.actif, mdns=self.alias.etat if self.alias else "désactivé",
+        infos.update(adresses=adresses, compte=self.gardien.actif, utilisateur=getattr(self, "login", None),
+                     comptes=self.gardien.comptes(),
+                     masques=[{"id": c["id"], "nom": c["nom"], "suffixe": c.get("suffixe", ""), "port": c["port"]}
+                              for c in g.masques], mdns=self.alias.etat if self.alias else "désactivé",
                      version=depot.version(config.RACINE), maj=g.launcher_maj,
                      action=g.launcher_action, heure=int(time.time()),
                      heures_maj=g.heures_maj, prochaine_verif=g.prochaine_verif)
@@ -194,6 +198,19 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
+            if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
+                return self._comptes(morceaux[2], corps)
+            if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4 and morceaux[3] == "reglages":
+                try:
+                    d = json.loads(corps.decode("utf-8") or "{}")
+                    port, affiche = d.get("port"), d.get("affiche")
+                except (ValueError, AttributeError):
+                    return self._json({"erreur": "réglages illisibles"}, 400)
+                try:
+                    g.regler(morceaux[2], port=port, affiche=affiche)
+                except ValueError as exc:
+                    return self._json({"erreur": str(exc)}, 400)
+                return self._json({"ok": True})
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4 and morceaux[3] == "maj_auto":
                 try:
                     valeur = json.loads(corps.decode("utf-8") or "{}").get("valeur")
@@ -234,6 +251,23 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": erreur}, 401)
         return self._json({"ok": True}, cookie="%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict"
                           % (COOKIE, jeton, compte.DUREE_SESSION))
+
+    def _comptes(self, action, corps):
+        """Ajouter un compte, changer un mot de passe, supprimer un compte (tous les comptes ont les mêmes droits)."""
+        try:
+            d = json.loads(corps.decode("utf-8") or "{}")
+            login, mdp = str(d.get("login", ""))[:200], str(d.get("mot_de_passe", ""))[:1000]
+        except (ValueError, AttributeError):
+            return self._json({"erreur": "demande illisible"}, 400)
+        if action == "ajouter":
+            erreur = self.gardien.ajouter(login, mdp)
+        elif action == "mot_de_passe":
+            erreur = self.gardien.changer_mdp(login, mdp, garder=self._jeton_session())
+        elif action == "supprimer":
+            erreur = self.gardien.supprimer(login)
+        else:
+            return self._json({"erreur": "route inconnue"}, 404)
+        return self._json({"erreur": erreur}, 400) if erreur else self._json({"ok": True})
 
     def _maj_launcher(self):
         g = self.gestionnaire

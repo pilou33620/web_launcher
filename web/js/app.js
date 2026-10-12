@@ -75,6 +75,7 @@ function rendreEntete() {
   $("#sous-titre").textContent = `${l.nom_machine} · ${l.ip || "hors réseau"}`;
   $("#sans-compte").hidden = l.compte;
   $("#deconnexion").hidden = !l.compte;
+  $("#deconnexion").textContent = l.utilisateur ? `Déconnexion (${l.utilisateur})` : "Déconnexion";
   const html = l.adresses.map((a) => `
     <a class="adresse" href="${echap(a.url)}">
       <small>${echap(a.type)}</small><code>${echap(a.url.replace(/^http:\/\//, "").replace(/\/$/, ""))}</code>
@@ -343,6 +344,106 @@ document.addEventListener("click", async (ev) => {
       await poster(`/api/outils/${o.id}/${action}`);
     } catch (e) { toast(e.message, true); }
     actualiser();
+  }
+});
+
+/* -- réglages : ports, outils affichés, comptes ---------------------------- */
+
+let mdpOuvert = null;                       // compte dont le formulaire « nouveau mot de passe » est ouvert
+
+function rendreReglages() {
+  if (!etat) return;
+  const outils = [
+    ...etat.outils.map((o) => ({ ...o, affiche: true })),
+    ...etat.launcher.masques.map((o) => ({ ...o, affiche: false })),
+  ];
+  $("#reglages-outils").innerHTML = outils.map((o) => {
+    const enMarche = o.affiche && (o.pid || o.action || o.phase === "externe");
+    const dis = enMarche ? " disabled" : "";
+    return `
+      <form class="reglage" data-reglage="${o.id}">
+        <div class="nom">${echap(o.nom)}${echap(o.suffixe)}
+          <small>${enMarche ? "En marche : l'arrêter pour changer ses réglages" : o.affiche ? "Affiché" : "Masqué"}</small></div>
+        <label>Port <input type="number" name="port" min="1024" max="65535" value="${o.port}" required${dis}></label>
+        <label><input type="checkbox" name="affiche"${o.affiche ? " checked" : ""}${dis}> Afficher</label>
+        <button class="bouton secondaire" type="submit"${dis}>Enregistrer</button>
+      </form>`;
+  }).join("");
+
+  const comptes = etat.launcher.comptes;
+  $("#reglages-comptes").innerHTML = comptes.length ? comptes.map((c) => {
+    const moi = c.login === etat.launcher.utilisateur;
+    const form = mdpOuvert === c.login ? `
+      <form class="formulaire" data-mdp="${echap(c.login)}">
+        <input name="mdp" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" required>
+        <input name="mdp2" type="password" placeholder="Encore une fois" autocomplete="new-password" required>
+        <button class="bouton" type="submit">Changer</button>
+        <button class="bouton secondaire" type="button" data-compte-mdp="">Annuler</button>
+      </form>` : "";
+    return `
+      <div class="reglage">
+        <div class="nom">${echap(c.login)}${moi ? " (vous)" : ""}<small>${c.cree_le ? "créé le " + echap(c.cree_le) : ""}</small></div>
+        <button class="bouton secondaire" type="button" data-compte-mdp="${echap(c.login)}">Mot de passe…</button>
+        <button class="bouton danger" type="button" data-compte-suppr="${echap(c.login)}"${comptes.length < 2 ? " disabled title=\"Le dernier compte ne peut pas être supprimé\"" : ""}>Supprimer</button>
+        ${form}
+      </div>`;
+  }).join("") : `<p class="message erreur">Aucun compte : la page est ouverte à tout le réseau. Ajoutez-en un ci-dessous.</p>`;
+}
+
+async function apresReglage(message) {
+  toast(message);
+  await actualiser();
+  rendreReglages();
+}
+
+$("#ouvrir-reglages").onclick = async () => {
+  mdpOuvert = null;
+  await actualiser();
+  rendreReglages();
+  $("#reglages").showModal();
+};
+$("#reglages-fermer").onclick = () => $("#reglages").close();
+
+$("#reglages").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    if (f.dataset.reglage) {
+      await poster(`/api/outils/${f.dataset.reglage}/reglages`, { port: Number(f.port.value), affiche: f.affiche.checked });
+      await apresReglage("Réglages enregistrés");
+    } else if (f.dataset.mdp !== undefined) {
+      if (f.mdp.value !== f.mdp2.value) throw new Error("Les deux mots de passe diffèrent.");
+      await poster("/api/comptes/mot_de_passe", { login: f.dataset.mdp, mot_de_passe: f.mdp.value });
+      mdpOuvert = null;
+      await apresReglage(`Mot de passe de ${f.dataset.mdp} changé (ses autres appareils sont déconnectés)`);
+    } else if (f.id === "ajout-compte") {
+      if (f.mdp.value !== f.mdp2.value) throw new Error("Les deux mots de passe diffèrent.");
+      const premier = !etat.launcher.compte;
+      await poster("/api/comptes/ajouter", { login: f.login.value, mot_de_passe: f.mdp.value });
+      f.reset();
+      if (premier) return location.replace("/connexion.html");
+      await apresReglage("Compte ajouté");
+    }
+  } catch (e) { toast(e.message, true); }
+});
+
+$("#reglages").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  if (b.dataset.compteMdp !== undefined) {
+    mdpOuvert = mdpOuvert === b.dataset.compteMdp ? null : b.dataset.compteMdp || null;
+    rendreReglages();
+    const champ = $("#reglages-comptes input");
+    if (champ) champ.focus();
+  } else if (b.dataset.compteSuppr) {
+    const login = b.dataset.compteSuppr;
+    const moi = login === etat.launcher.utilisateur;
+    if (!confirm(`Supprimer le compte ${login} ?${moi ? "\n\nC'est le vôtre : vous serez déconnecté." : ""}`)) return;
+    try {
+      await poster("/api/comptes/supprimer", { login });
+      if (moi) return location.replace("/connexion.html");
+      await apresReglage(`Compte ${login} supprimé`);
+    } catch (e) { toast(e.message, true); }
   }
 });
 

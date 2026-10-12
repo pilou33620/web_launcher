@@ -166,6 +166,13 @@ Sans connexion, la carte affiche « GitHub refuse l'accès (dépôt privé ?) »
 
 **Rien à faire si tout vous convient** : le launcher fonctionne sans ce qui suit.
 
+**Depuis la page** : bouton **Réglages** (en haut). Pour chaque outil, son **port** et
+**Afficher** (décoché : l'outil disparaît de la page, il revient en recochant). L'outil
+doit être arrêté. C'est enregistré dans `config.local.json` (voir ci-dessous) et appliqué
+tout de suite, sans redémarrer le launcher. Le panneau gère aussi les **comptes**.
+
+**À la main**, pour les autres réglages :
+
 Les réglages par défaut sont dans `outils.json` : la liste des outils (dépôt GitHub, port,
 commande de lancement), le port du launcher (80), le dossier `~/Documents`, la vérification
 GitHub toutes les 6 h. **Ne pas modifier ce fichier sur le Pi** : il est suivi par git, et
@@ -214,6 +221,7 @@ lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action
 lanceur/gestionnaire.py  démarrage, arrêt, reprise, installation, mises à jour
 lanceur/depot.py         git (fetch, pull --ff-only, clone)
 lanceur/reseau.py        IP, ports, annonce mDNS de launcher.local
+lanceur/compte.py        comptes, mots de passe hachés, sessions
 lanceur/console.py       terminal d'un outil (pseudo-terminal, saisie via journaux/<id>.entree)
 web/                     les pages (launcher, Terminaux), HTML, CSS, JS sans dépendance
 outils.json              catalogue des outils
@@ -225,13 +233,18 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 Tests : `python3 -m unittest discover tests` (un faux outil et un dépôt git local,
 sans réseau).
 
-## Compte
+## Comptes
 
 La page du launcher (cartes, terminaux, journaux, API) demande un **identifiant et un mot
-de passe**. Créés par `installer.sh`, ou à tout moment sur le Pi :
+de passe**. Il peut y avoir **plusieurs comptes**, un par personne : ils ont tous les mêmes
+droits. Le premier est créé par `installer.sh`.
+
+- **Depuis la page**, **Réglages** → *Comptes* : ajouter un compte, changer le mot de passe
+  d'un compte, supprimer un compte (sauf le dernier).
+- **Sur le Pi** (en SSH), par exemple en cas d'oubli :
 
 ```bash
-python3 launcher.py --compte     # créer, ou changer l'identifiant / le mot de passe
+python3 launcher.py --compte     # identifiant nouveau : ajouté ; existant : nouveau mot de passe
 ```
 
 - Le mot de passe n'est **jamais stocké en clair** : seule son empreinte **scrypt** (sel
@@ -242,7 +255,8 @@ python3 launcher.py --compte     # créer, ou changer l'identifiant / le mot de 
   `HttpOnly` / `SameSite=Strict`, valable 30 jours. Le launcher n'en garde que l'empreinte
   SHA-256 (`sessions.local.json`). **Déconnexion** en haut de la page.
 - 5 erreurs depuis une même adresse la bloquent 5 minutes.
-- Changer le mot de passe déconnecte tous les appareils.
+- Changer le mot de passe d'un compte déconnecte ses autres appareils ; supprimer un compte
+  déconnecte tous ses appareils. Les autres comptes ne sont pas touchés.
 - Mot de passe oublié : `python3 launcher.py --compte` sur le Pi (en SSH).
 - Sans compte créé, la page reste ouverte à tous et l'affiche en rouge.
 

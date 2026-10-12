@@ -31,6 +31,7 @@
   <span class="espace"></span>
   <button class="lien" data-terminal="">Terminaux ↗</button>
   <button class="lien" id="verifier-tout">Vérifier les mises à jour</button>
+  <button class="lien" id="ouvrir-reglages">Réglages</button>
   <button class="lien" id="deconnexion" hidden>Déconnexion</button>
 </section>
 
@@ -46,6 +47,30 @@
     <button class="lien" id="journal-fermer">Fermer ✕</button>
   </div>
   <pre id="journal-texte"></pre>
+</dialog>
+
+<dialog id="reglages">
+  <div class="journal-tete">
+    <strong>Réglages</strong>
+    <span class="espace"></span>
+    <button class="lien" id="reglages-fermer">Fermer ✕</button>
+  </div>
+  <div class="reglages-corps">
+    <h3>Outils</h3>
+    <p class="aide">Port de chaque outil, et outils affichés sur la page. Un outil doit être arrêté pour changer ses réglages.</p>
+    <div id="reglages-outils"></div>
+
+    <h3>Comptes</h3>
+    <p class="aide">Chaque personne peut avoir son identifiant et son mot de passe. Tous les comptes ont les mêmes droits.</p>
+    <div id="reglages-comptes"></div>
+    <form class="formulaire" id="ajout-compte">
+      <strong>Ajouter un compte</strong>
+      <input name="login" placeholder="Identifiant" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <input name="mdp" type="password" placeholder="Mot de passe (8 caractères au moins)" autocomplete="new-password" required>
+      <input name="mdp2" type="password" placeholder="Encore une fois" autocomplete="new-password" required>
+      <button class="bouton" type="submit">Ajouter</button>
+    </form>
+  </div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

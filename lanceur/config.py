@@ -36,8 +36,35 @@ def charger(catalogue=CATALOGUE, local=LOCAL):
             ordre.append(o["id"])
     conf.update(ajout)
     conf["outils"] = [outils[i] for i in ordre if not outils[i].get("masque")]
+    conf["outils_masques"] = [outils[i] for i in ordre if outils[i].get("masque")]
+    conf["ordre"] = ordre
     conf["dossier_outils"] = os.path.abspath(os.path.expanduser(conf.get("dossier_outils", "~/Documents")))
     return conf
+
+
+def regler_outil(oid, chemin=LOCAL, **champs):
+    """Change des réglages d'un outil dans config.local.json (le reste du fichier est gardé).
+    Un champ à None est retiré : la valeur du catalogue revient."""
+    local = _lire(chemin)
+    outils = local.setdefault("outils", [])
+    entree = next((o for o in outils if o.get("id") == oid), None)
+    if entree is None:
+        entree = {"id": oid}
+        outils.append(entree)
+    for cle, valeur in champs.items():
+        if valeur is None:
+            entree.pop(cle, None)
+        else:
+            entree[cle] = valeur
+    if len(entree) == 1:                    # plus que l'id : rien à remplacer
+        outils.remove(entree)
+    if not outils:
+        del local["outils"]
+    temporaire = chemin + ".tmp"
+    with open(temporaire, "w", encoding="utf-8") as f:
+        json.dump(local, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(temporaire, chemin)
 
 
 def lire_etat():

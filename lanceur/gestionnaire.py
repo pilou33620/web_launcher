@@ -135,6 +135,8 @@ class Gestionnaire:
         self.ecrire = ecrire
         self.outils = [Outil(o, conf["dossier_outils"]) for o in conf["outils"]]
         self.par_id = {o.id: o for o in self.outils}
+        self.masques = list(conf.get("outils_masques", []))    # cachés (Réglages), réglages seulement
+        self.ordre = conf.get("ordre") or [o.id for o in self.outils]
         self.verrou_etat = threading.Lock()
         self.launcher_maj = {"nombre": 0, "nouveautes": [], "modifies": [], "verifie_le": None, "erreur": None}
         self.launcher_action = None
@@ -570,6 +572,63 @@ class Gestionnaire:
         trouves = re.findall(motif, fin)
         if trouves and (o.code is None or o.code[0] != trouves[-1]):
             o.code = (trouves[-1], time.time())
+
+    def regler(self, oid, port=None, affiche=None, fichier=None):
+        """Port et affichage d'un outil arrêté (page Réglages), gardés dans config.local.json.
+        Lève KeyError, OccupeErreur, ValueError (port refusé)."""
+        o = self.par_id.get(oid)
+        conf = o.conf if o else next((c for c in self.masques if c["id"] == oid), None)
+        if conf is None:
+            raise KeyError(oid)
+        if o and not o.verrou.acquire(blocking=False):
+            raise OccupeErreur("%s est occupé, réessayer dans un instant." % conf["nom"])
+        try:
+            if o and (o.action or o.pid or o.phase == "externe"):
+                raise OccupeErreur("Arrêter %s%s avant de changer ses réglages." % (conf["nom"], conf.get("suffixe", "")))
+            champs = {}
+            if port is not None:
+                try:
+                    port = int(port)
+                except (TypeError, ValueError):
+                    raise ValueError("Port : un nombre, par exemple 8080.")
+            if port is not None and port != int(conf["port"]):
+                if not 1024 <= port <= 65535:
+                    raise ValueError("Port : entre 1024 et 65535.")
+                if port in (self.conf.get("port"), self.conf.get("port_secours")):
+                    raise ValueError("Port %d : c'est celui du launcher." % port)
+                autres = [x.conf for x in self.outils] + self.masques
+                pris = next((x for x in autres if x["id"] != oid and int(x["port"]) == port), None)
+                if pris:
+                    raise ValueError("Port %d : déjà celui de %s%s." % (port, pris["nom"], pris.get("suffixe", "")))
+                if reseau.port_ouvert(port):
+                    raise ValueError("Port %d : déjà utilisé par un autre programme." % port)
+                champs["port"] = port
+            if affiche is not None and bool(affiche) == bool(conf.get("masque")):
+                champs["masque"] = None if affiche else True
+            if not champs:
+                return
+            config.regler_outil(oid, fichier or config.LOCAL, **champs)
+            if "port" in champs:
+                conf["port"] = port
+                if o:
+                    o.port = port
+                    o.message = ""
+        finally:
+            if o:
+                o.verrou.release()
+        if "masque" in champs:
+            if affiche:
+                conf.pop("masque", None)
+                self.masques.remove(conf)
+                rang = {i: n for n, i in enumerate(self.ordre)}
+                outils = sorted(self.outils + [Outil(conf, self.conf["dossier_outils"])],
+                                key=lambda x: rang.get(x.id, len(rang)))
+            else:
+                conf["masque"] = True
+                self.masques.append(conf)
+                outils = [x for x in self.outils if x is not o]
+            self.outils, self.par_id = outils, {x.id: x for x in outils}
+            self.sauver()
 
     def regler_maj_auto(self, oid, valeur):
         o = self.par_id[oid]

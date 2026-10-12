@@ -237,6 +237,48 @@ class Compte(unittest.TestCase):
         self.assertIsNotNone(self.g.verifier("pilou", "correct horse", "10.0.0.3")[0])
         self.assertIsNone(self.g.verifier("autre", "correct horse", "10.0.0.4")[0])
 
+    def test_plusieurs_comptes(self):
+        self.assertIn("existe", self.g.ajouter("PILOU", "un autre mdp"))
+        self.assertIn("court", self.g.ajouter("marie", "court"))
+        self.assertIsNone(self.g.ajouter("marie", "mot de passe marie"))
+        self.assertEqual([c["login"] for c in self.g.comptes()], ["pilou", "marie"])
+        j_pilou = self.g.verifier("pilou", "correct horse", "10.0.0.1")[0]
+        j_marie = self.g.verifier("Marie", "mot de passe marie", "10.0.0.1")[0]
+        j_marie2 = self.g.verifier("marie", "mot de passe marie", "10.0.0.5")[0]
+        self.assertEqual(self.g.utilisateur(j_marie), "marie")
+        self.assertIsNone(self.g.verifier("marie", "correct horse", "10.0.0.1")[0])
+        # nouveau mot de passe : les autres appareils de marie déconnectés, pas celui qui le change
+        self.assertIsNone(self.g.changer_mdp("marie", "nouveau mdp marie", garder=j_marie))
+        self.assertTrue(self.g.session_valide(j_marie))
+        self.assertFalse(self.g.session_valide(j_marie2))
+        self.assertTrue(self.g.session_valide(j_pilou))
+        self.assertIsNotNone(self.g.verifier("marie", "nouveau mdp marie", "10.0.0.1")[0])
+        # suppression : ses sessions tombent ; le dernier compte reste
+        self.assertIsNone(self.g.supprimer("marie"))
+        self.assertFalse(self.g.session_valide(j_marie))
+        self.assertTrue(self.g.session_valide(j_pilou))
+        self.assertIn("dernier", self.g.supprimer("pilou"))
+        # en console : un identifiant existant change son mot de passe, un nouveau est ajouté
+        saisies = iter(["paul", "mdp de paul!", "mdp de paul!"])
+        self.assertTrue(compte.creer_compte(self.fichier, self.sessions, saisir=lambda _: next(saisies),
+                                            secret=lambda _: next(saisies), ecrire=lambda _: None))
+        self.assertEqual([c["login"] for c in self.g.comptes()], ["pilou", "paul"])
+        self.assertTrue(self.g.session_valide(j_pilou))
+
+    def test_ancien_fichier_a_un_compte(self):
+        jeton = self.g.verifier("pilou", "correct horse", "10.0.0.1")[0]
+        with open(self.fichier) as f:
+            ancien = json.load(f)["comptes"][0]
+        with open(self.fichier, "w") as f:
+            json.dump(ancien, f)                        # format d'avant : un seul compte
+        with open(self.sessions, "w") as f:
+            json.dump({compte.Gardien._empreinte(jeton): time.time() + 60}, f)
+        g = compte.Gardien(self.fichier, self.sessions)
+        self.assertEqual(g.utilisateur(jeton), "pilou")
+        self.assertIsNotNone(g.verifier("pilou", "correct horse", "10.0.0.1")[0])
+        self.assertIsNone(g.ajouter("marie", "mot de passe marie"))
+        self.assertEqual([c["login"] for c in g.comptes()], ["pilou", "marie"])
+
     def test_serveur_protege(self):
         import threading
         import urllib.error
@@ -297,7 +339,38 @@ class Configuration(unittest.TestCase):
         conf = config.charger(cat, loc)
         self.assertEqual(conf["port"], 8090)
         self.assertEqual([(o["id"], o["port"]) for o in conf["outils"]], [("a", 9), ("c", 3)])
+        self.assertEqual([o["id"] for o in conf["outils_masques"]], ["b"])
         self.assertEqual(conf["dossier_outils"], os.path.expanduser("~/x"))
+
+    def test_reglages_depuis_la_page(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        loc = os.path.join(tmp, "l.json")
+        with open(loc, "w") as f:
+            json.dump({"verification_maj_heures": 12}, f)
+        p1, p2 = port_libre(), port_libre()
+        conf = {"dossier_outils": tmp, "port": 80, "port_secours": 8090, "ordre": ["a", "b"],
+                "outils": [{"id": "a", "nom": "A", "port": p1, "depot": "x"},
+                           {"id": "b", "nom": "B", "port": p2, "depot": "x"}]}
+        g = Gestionnaire(conf, ecrire=lambda t: None)
+        for port in ("abc", 80, 22, p2):
+            with self.assertRaises(ValueError):
+                g.regler("a", port=port, fichier=loc)
+        nouveau = port_libre()
+        g.regler("a", port=nouveau, fichier=loc)
+        self.assertEqual(g.par_id["a"].port, nouveau)
+        g.regler("a", affiche=False, fichier=loc)
+        self.assertEqual([o.id for o in g.outils], ["b"])
+        self.assertEqual(config.charger(os.path.join(tmp, "absent.json"), loc)["verification_maj_heures"], 12)
+        with open(loc) as f:
+            self.assertEqual(json.load(f)["outils"], [{"id": "a", "port": nouveau, "masque": True}])
+        g.regler("a", affiche=True, fichier=loc)
+        self.assertEqual([o.id for o in g.outils], ["a", "b"])
+        g.par_id["b"].pid = os.getpid()                   # en marche : réglages refusés
+        with self.assertRaises(OccupeErreur):
+            g.regler("b", port=port_libre(), fichier=loc)
+        with self.assertRaises(KeyError):
+            g.regler("z", port=9000, fichier=loc)
 
     def test_catalogue_livre(self):
         conf = config.charger(config.CATALOGUE, os.devnull + ".absent")

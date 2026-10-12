@@ -24,7 +24,7 @@ def main():
     ap.add_argument("--dossier", help="dossier des web tools (défaut : ~/Documents)")
     ap.add_argument("--sans-mdns", action="store_true", help="ne pas annoncer launcher.local")
     ap.add_argument("--compte", action="store_true",
-                    help="créer ou changer l'identifiant et le mot de passe, puis quitter")
+                    help="ajouter un compte ou changer un mot de passe, puis quitter")
     args = ap.parse_args()
     if args.compte:
         return 0 if compte.creer_compte() else 1
