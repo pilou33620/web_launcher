@@ -120,7 +120,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         adresses.append({"type": "Machine", "url": "http://%s.local%s/" % (reseau.nom_machine(), suffixe)})
         infos.update(adresses=adresses, compte=self.gardien.actif, mdns=self.alias.etat if self.alias else "désactivé",
                      version=depot.version(config.RACINE), maj=g.launcher_maj,
-                     action=g.launcher_action, heure=int(time.time()))
+                     action=g.launcher_action, heure=int(time.time()),
+                     heures_maj=g.heures_maj, prochaine_verif=g.prochaine_verif)
         return {"launcher": infos, "outils": g.etat()}
 
     # -- routes ---------------------------------------------------------
@@ -192,6 +193,13 @@ class Lanceur(SimpleHTTPRequestHandler):
                     g.envoyer(morceaux[2], texte)
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
+                return self._json({"ok": True})
+            if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4 and morceaux[3] == "maj_auto":
+                try:
+                    valeur = json.loads(corps.decode("utf-8") or "{}").get("valeur")
+                except (ValueError, AttributeError):
+                    return self._json({"erreur": "demande illisible"}, 400)
+                g.regler_maj_auto(morceaux[2], bool(valeur))
                 return self._json({"ok": True})
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4:
                 g.lancer_action(morceaux[2], morceaux[3])

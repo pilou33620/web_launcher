@@ -79,9 +79,17 @@ Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour mainten
 - **Toujours allumé** : un outil allumé reste allumé après un redémarrage du Pi (badge
   *Auto*). **Arrêter** le retire. S'il plante, il est relancé (3 fois en 10 minutes au plus,
   ensuite l'erreur reste affichée avec le journal).
-- **Mises à jour** : rien n'est fait tout seul. **Vérifier les mises à jour** (en haut, ou
-  menu **…** d'un outil) regarde GitHub et affiche les nouveautés ; **Mettre à jour** les
-  installe quand vous le décidez. Elle marche même si l'outil tourne : arrêt,
+- **Mises à jour**, à la main ou automatiques :
+  - **à la main** : **Vérifier les mises à jour** (en haut, ou menu **…** d'un outil)
+    regarde GitHub et affiche les nouveautés ; **Mettre à jour** les installe ;
+  - **vérification automatique toutes les 6 heures** (et 30 s après le démarrage du Pi) :
+    les nouveautés s'affichent sur les cartes, rien n'est installé ; l'heure de la
+    prochaine vérification est en bas de la page ;
+  - **Mise à jour auto** (menu **…**, outil par outil, désactivée par défaut) : à chaque
+    vérification automatique, la nouvelle version est installée et l'outil redémarre
+    (quelques secondes d'interruption). Badge *MAJ auto* sur la carte.
+
+  La mise à jour marche même si l'outil tourne : arrêt,
   `git pull --ff-only`, réinstallation des bibliothèques si `requirements.txt` a changé,
   redémarrage. Jamais de fusion ni d'écrasement : si des fichiers suivis par git ont été
   modifiés sur le Pi, la mise à jour est refusée et les fichiers sont nommés.
@@ -163,7 +171,7 @@ créer `config.local.json` (ignoré par git) avec seulement ce qui change :
 {
   "port": 80,
   "dossier_outils": "~/Documents",
-  "verification_maj_heures": 0,
+  "verification_maj_heures": 6,
   "outils": [
     { "id": "web_menu", "port": 8000 },
     { "id": "web_conquete", "masque": true }
@@ -175,8 +183,8 @@ créer `config.local.json` (ignoré par git) avec seulement ce qui change :
 - un nouvel `id` : ajoute un outil (`nom`, `depot`, `dossiers`, `port`, `commande` avec
   `{python}` et `{port}`, `venv`, `accent`...). Voir `outils.json` pour des exemples ;
 - `"nom_mdns": "launcher"` : le nom annoncé (`launcher.local`), `null` pour ne rien annoncer ;
-- `"verification_maj_heures": 6` : regarder GitHub tout seul toutes les 6 heures (vérifier
-  seulement, jamais installer) ; `0` par défaut : seulement quand on clique.
+- `"verification_maj_heures": 6` (défaut) : fréquence de la vérification automatique, en
+  heures ; `0` : seulement quand on clique (la *Mise à jour auto* ne fait alors plus rien).
 
 Puis `sudo systemctl restart web_launcher`.
 

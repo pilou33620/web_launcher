@@ -54,6 +54,7 @@ class Outil:
         self.lance_le = 0.0
         self.arret_demande = False
         self.voulu = False                  # doit tourner (rallumé au démarrage du Pi)
+        self.maj_auto = False               # installer seul les mises à jour trouvées toutes les 6 h
         self.phase = "arrete"
         self.message = ""
         self.code_sortie = None
@@ -137,13 +138,16 @@ class Gestionnaire:
         self.verrou_etat = threading.Lock()
         self.launcher_maj = {"nombre": 0, "nouveautes": [], "modifies": [], "verifie_le": None, "erreur": None}
         self.launcher_action = None
+        self.heures_maj = float(conf.get("verification_maj_heures", 6) or 0)
+        self.prochaine_verif = None         # heure de la prochaine vérification automatique
         os.makedirs(config.JOURNAUX, exist_ok=True)
 
     # -- état persistant ----------------------------------------------
 
     def sauver(self):
         with self.verrou_etat:
-            config.ecrire_etat({"outils": {o.id: {"pid": o.pid, "voulu": o.voulu} for o in self.outils}})
+            config.ecrire_etat({"outils": {o.id: {"pid": o.pid, "voulu": o.voulu, "maj_auto": o.maj_auto}
+                                          for o in self.outils}})
 
     def reprendre(self):
         """Au démarrage du launcher : retrouve les outils qui tournent, rallume ceux voulus."""
@@ -151,6 +155,7 @@ class Gestionnaire:
         for o in self.outils:
             e = etat.get(o.id, {})
             o.voulu = bool(e.get("voulu"))
+            o.maj_auto = bool(e.get("maj_auto"))
             pid = e.get("pid")
             if pid and self._vivant(o, pid) and self._est_a_lui(o, pid):
                 o.pid, o.lance_le, o.phase = pid, heure_lancement(pid), "demarrage"
@@ -566,25 +571,44 @@ class Gestionnaire:
         if trouves and (o.code is None or o.code[0] != trouves[-1]):
             o.code = (trouves[-1], time.time())
 
+    def regler_maj_auto(self, oid, valeur):
+        o = self.par_id[oid]
+        o.maj_auto = bool(valeur)
+        self._noter(o, "mise à jour automatique %s" % ("activée" if o.maj_auto else "désactivée"))
+        self.sauver()
+
+    def verifier_tous(self):
+        """Vérification automatique : le launcher et chaque outil installé ; les outils en
+        « mise à jour auto » installent aussitôt ce qui est trouvé (et redémarrent)."""
+        self.verifier_launcher()
+        for o in self.outils:
+            if not o.installe or not o.verrou.acquire(blocking=False):
+                continue                    # occupé : ce sera pour la prochaine fois
+            o.action = "Recherche de mises à jour"
+            try:
+                self._verifier(o)
+                if o.maj_auto and o.maj["nombre"] and not o.maj["modifies"]:
+                    o.action = "Mise à jour automatique"
+                    self._noter(o, "mise à jour automatique : %d nouveauté(s)" % o.maj["nombre"])
+                    self._a_mettre_a_jour(o)
+                    o.message = "Mis à jour automatiquement le %s." % time.strftime("%d/%m à %H:%M")
+            except (depot.ErreurGit, RuntimeError, OSError) as exc:
+                o.message = "Mise à jour automatique : %s" % exc if o.maj_auto else o.message
+                self._noter(o, "vérification automatique : %s" % exc)
+            finally:
+                o.action = None
+                o.verrou.release()
+
     def _boucle_maj(self, arret):
-        heures = float(self.conf.get("verification_maj_heures", 6) or 0)
-        if heures <= 0:
+        if self.heures_maj <= 0:
             return
+        self.prochaine_verif = time.time() + 30
         if arret.wait(30):                  # laisser le réseau se connecter au démarrage du Pi
             return
         while True:
-            self.verifier_launcher()
-            for o in self.outils:
-                if o.installe and o.verrou.acquire(blocking=False):
-                    o.action = "Recherche de mises à jour"
-                    try:
-                        self._verifier(o)
-                    except depot.ErreurGit:
-                        pass
-                    finally:
-                        o.action = None
-                        o.verrou.release()
-            if arret.wait(heures * 3600):
+            self.verifier_tous()
+            self.prochaine_verif = time.time() + self.heures_maj * 3600
+            if arret.wait(self.heures_maj * 3600):
                 return
 
     # -- vue ----------------------------------------------------------
@@ -602,7 +626,7 @@ class Gestionnaire:
                 "site": o.conf["depot"][:-4] if o.conf["depot"].endswith(".git") else o.conf["depot"],
                 "port": o.port, "dossier": o.dossier, "installe": o.installe,
                 "phase": o.phase, "action": o.action, "message": o.message, "pid": o.pid,
-                "voulu": o.voulu, "depuis": int(o.lance_le) if o.pid else None,
+                "voulu": o.voulu, "maj_auto": o.maj_auto, "depuis": int(o.lance_le) if o.pid else None,
                 "version": o.version(),
                 "maj": o.maj, "code_appairage": code,
                 "terminal": o.avec_terminal, "attend_saisie": o.attend_saisie,

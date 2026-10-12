@@ -132,6 +132,23 @@ class FauxOutil(unittest.TestCase):
         self.assertFalse(reseau.port_ouvert(self.port))
         self.assertFalse(config.lire_etat()["outils"]["faux"]["voulu"])
 
+    def test_mise_a_jour_automatique(self):
+        self.g.verifier_launcher = lambda: None         # pas de GitHub pour le launcher lui-même
+        self.action("installer")
+        self.action("demarrer")
+        self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
+        self.publier("v2")
+        self.g.verifier_tous()                          # sans « MAJ auto » : vu, pas installé
+        self.assertEqual(self.o.maj["nombre"], 1)
+        self.assertEqual(self.page(), "v1")
+        self.g.regler_maj_auto("faux", True)
+        self.assertTrue(config.lire_etat()["outils"]["faux"]["maj_auto"])
+        self.g.verifier_tous()
+        self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
+        self.assertEqual(self.page(), "v2")
+        self.assertEqual(self.o.maj["nombre"], 0)
+        self.assertIn("automatiquement", self.o.message)
+
     def test_reprise_et_relance(self):
         self.action("installer")
         self.action("demarrer")

@@ -35,8 +35,11 @@ function toast(texte, erreur = false) {
   toast.minuteur = setTimeout(() => (t.className = "toast"), 3500);
 }
 
-async function poster(url) {
-  const r = await fetch(url, { method: "POST", headers: { "X-Launcher": "1" } });
+async function poster(url, corps) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "X-Launcher": "1", "Content-Type": "application/json" },
+    body: corps ? JSON.stringify(corps) : undefined,
+  });
   const d = await r.json().catch(() => ({}));
   if (r.status === 401) location.replace("/connexion.html");
   if (!r.ok) throw new Error(d.erreur || "Erreur " + r.status);
@@ -92,6 +95,7 @@ function rendreEntete() {
     <span>Version <code>${v ? echap(v.commit) : "?"}</code>${v ? " · " + dateCourte(v.date) : ""}</span>
     <span>Outils dans <code>${echap(l.dossier_outils)}</code></span>
     <span>launcher.local : <code>${echap(l.mdns)}</code></span>
+    <span>${l.heures_maj > 0 ? `Vérification GitHub toutes les ${l.heures_maj} h${l.prochaine_verif ? ` · prochaine ${l.prochaine_verif - l.heure < 60 ? "dans un instant" : "dans " + duree(l.prochaine_verif - l.heure)}` : ""}` : "Vérification GitHub : à la demande"}</span>
     <span class="espace"></span>
     ${m.erreur ? `<span class="message erreur">${echap(m.erreur)}</span>` : ""}
     ${l.action ? `<span class="statut attente">${echap(l.action)}</span>`
@@ -137,6 +141,7 @@ function menuPlus(o) {
         <button data-action="redemarrer"${d(o.installe && !occupe && o.phase !== "externe")}>Redémarrer</button>
         <button data-action="verifier"${d(o.installe && !occupe)}>Vérifier la mise à jour</button>
         <button data-action="mettre_a_jour"${d(o.installe && !occupe)}>Mettre à jour maintenant</button>
+        <button data-maj-auto="${o.id}"${d(o.installe && etat.launcher.heures_maj > 0)}>${o.maj_auto ? "✓ " : ""}Mise à jour auto (toutes les ${etat.launcher.heures_maj || 6} h)</button>
         <button data-terminal="${o.id}">Terminal ↗</button>
         <button data-journal="${o.id}">Voir le journal</button>
         <button data-copier="${echap(urlOutil(o))}">Copier l'adresse</button>
@@ -151,6 +156,7 @@ function carte(o, i) {
   else statuts.push(`<span class="statut ${classe}">${libelle}</span>`);
   if (o.maj && o.maj.nombre) statuts.push(`<span class="statut maj">${o.maj.nombre} mise${o.maj.nombre > 1 ? "s" : ""} à jour</span>`);
   if (o.attend_saisie) statuts.push(`<button class="statut maj" data-terminal="${o.id}" title="Ouvrir son terminal">Attend une réponse ↗</button>`);
+  if (o.installe && o.maj_auto) statuts.push(`<span class="statut info" title="Les mises à jour trouvées toutes les ${etat.launcher.heures_maj} h sont installées automatiquement (l'outil redémarre)">MAJ auto</span>`);
   if (o.installe && o.voulu && o.pid) statuts.push(`<span class="statut eteint" title="Rallumé automatiquement au démarrage du Raspberry Pi">Auto</span>`);
 
   const v = o.version;
@@ -288,6 +294,18 @@ document.addEventListener("click", async (ev) => {
   if (cible.dataset.menu) {
     menuOuvert = menuOuvert === cible.dataset.menu ? null : cible.dataset.menu;
     rendre();
+    return;
+  }
+  if (cible.dataset.majAuto) {
+    const o = etat.outils.find((x) => x.id === cible.dataset.majAuto);
+    menuOuvert = null;
+    const activer = !o.maj_auto;
+    if (activer && !confirm(`Installer automatiquement les mises à jour de ${o.nom}${o.suffixe} ?\n\nToutes les ${etat.launcher.heures_maj} h, si GitHub a une nouvelle version, elle est installée et l'outil redémarre (quelques secondes d'interruption).`)) { rendre(); return; }
+    try {
+      await poster(`/api/outils/${o.id}/maj_auto`, { valeur: activer });
+      toast(`Mise à jour auto ${activer ? "activée" : "désactivée"} pour ${o.nom}${o.suffixe}`);
+    } catch (e) { toast(e.message, true); }
+    actualiser();
     return;
   }
   if (cible.dataset.terminal !== undefined) {
