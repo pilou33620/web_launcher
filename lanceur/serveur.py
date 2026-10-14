@@ -20,12 +20,46 @@ COOKIE = "launcher_session"
 PUBLIC = {"/connexion.html", "/js/connexion.js"}
 
 
+class Visites:
+    """Les appareils qui utilisent ce serveur, affichés dans son terminal : une ligne quand
+    une IP arrive, ou revient après INACTIF secondes sans requête (même format que les outils)."""
+    INACTIF = 600
+
+    def __init__(self, nom, afficher=None):
+        self.nom = nom
+        self.afficher = afficher or (lambda texte: print(texte, flush=True))
+        self.verrou = threading.Lock()
+        self.vues = {}                      # ip -> dernière requête (time.monotonic)
+
+    def noter(self, ip, qui=None):
+        try:
+            a = ipaddress.ip_address(str(ip).split("%")[0])
+            ip = str(getattr(a, "ipv4_mapped", None) or a)
+        except ValueError:
+            pass
+        if qui:
+            ip = "%s (%s)" % (ip, qui)
+        maintenant = time.monotonic()
+        with self.verrou:
+            arrivee = maintenant - self.vues.get(ip, float("-inf")) > self.INACTIF
+            self.vues = {i: t for i, t in self.vues.items() if maintenant - t <= self.INACTIF}
+            self.vues[ip] = maintenant
+            if not arrivee:
+                return
+            actifs = sorted(self.vues)
+        self.dire(ip, "%d appareil(s) actif(s) : %s" % (len(actifs), ", ".join(actifs)))
+
+    def dire(self, ip, texte):
+        self.afficher("  [connexion] %s  %-11s %s  ->  %s" % (time.strftime("%H:%M:%S"), self.nom, ip, texte))
+
+
 class Lanceur(SimpleHTTPRequestHandler):
     gestionnaire = None
     infos = {}                      # adresses, nom mDNS... (rempli par main)
     alias = None
     relancer = None                 # fonction : redémarre le launcher (après sa mise à jour)
     gardien = None                  # compte.Gardien : identifiant, mot de passe, sessions
+    visites = Visites("launcher")   # les appareils connectés, dans la sortie du launcher
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -72,7 +106,10 @@ class Lanceur(SimpleHTTPRequestHandler):
     def connecte(self):
         """Sans compte créé, tout le monde entre (la page le signale en rouge)."""
         self.login = self.gardien.utilisateur(self._jeton_session())
-        return self.login is not None or not self.gardien.actif
+        if self.login is None and self.gardien.actif:
+            return False
+        self.visites.noter(self.client_address[0], self.login)
+        return True
 
     def _rediriger(self, cible):
         self.send_response(302)
@@ -220,6 +257,8 @@ class Lanceur(SimpleHTTPRequestHandler):
                 return self._json({"ok": True})
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4:
                 g.lancer_action(morceaux[2], morceaux[3])
+                self.visites.dire("%s (%s)" % (self.client_address[0], self.login or "sans compte"),
+                                  "%s %s" % (morceaux[3], morceaux[2]))
                 return self._json({"ok": True})
             if morceaux == ["api", "verifier_tout"]:
                 for o in g.outils:
@@ -253,6 +292,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         except (ValueError, AttributeError):
             return self._json({"erreur": "demande illisible"}, 400)
         jeton, erreur = self.gardien.verifier(login, mdp, self.client_address[0])
+        # l'identifiant refusé n'est pas affiché : texte venu du réseau, pas dans le terminal
+        self.visites.dire(self.client_address[0], "échec de connexion" if erreur else "connexion de %s" % login)
         if erreur:
             return self._json({"erreur": erreur}, 401)
         return self._json({"ok": True}, cookie="%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict"

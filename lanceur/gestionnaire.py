@@ -151,6 +151,7 @@ class Gestionnaire:
         self.launcher_action = None
         self.heures_maj = float(conf.get("verification_maj_heures", 6) or 0)
         self.prochaine_verif = None         # heure de la prochaine vérification automatique
+        self.lus = {}                       # id -> position déjà relayée du journal (_relayer_connexions)
         os.makedirs(config.JOURNAUX, exist_ok=True)
 
     # -- état persistant ----------------------------------------------
@@ -478,8 +479,29 @@ class Gestionnaire:
             for o in self.outils:
                 try:
                     self._actualiser(o)
+                    self._relayer_connexions(o)
                 except Exception as exc:  # la surveillance ne doit jamais s'arrêter
                     self.ecrire("  surveillance %s : %s" % (o.id, exc))
+
+    def _relayer_connexions(self, o):
+        """Recopie dans la sortie du launcher les lignes [connexion] du journal de l'outil :
+        qui utilise quel outil, depuis quelle IP."""
+        try:
+            with open(o.journal, "rb") as f:
+                taille = f.seek(0, os.SEEK_END)
+                lu = self.lus.setdefault(o.id, taille)  # ce qui précède le démarrage est déjà vu
+                if taille < lu:
+                    lu = 0                              # journal renouvelé (.log.1)
+                f.seek(lu)
+                bloc = f.read()
+        except OSError:
+            self.lus.setdefault(o.id, 0)                # pas encore de journal : tout sera neuf
+            return
+        fin = bloc.rfind(b"\n") + 1                     # les lignes complètes seulement
+        self.lus[o.id] = lu + fin
+        for ligne in bloc[:fin].decode("utf-8", "replace").splitlines():
+            if "[connexion]" in ligne:
+                self.ecrire(ligne.rstrip())
 
     def _actualiser(self, o):
         if o.action and o.phase in ("arret", "maj", "installation"):

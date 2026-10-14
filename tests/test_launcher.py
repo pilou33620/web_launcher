@@ -132,6 +132,26 @@ class FauxOutil(unittest.TestCase):
         self.assertFalse(reseau.port_ouvert(self.port))
         self.assertFalse(config.lire_etat()["outils"]["faux"]["voulu"])
 
+    def test_relais_des_connexions(self):
+        lignes = []
+        self.g.ecrire = lignes.append
+        os.makedirs(config.JOURNAUX, exist_ok=True)
+        with open(self.o.journal, "w") as f:
+            f.write("  [connexion] avant le launcher\n")
+        self.g._relayer_connexions(self.o)                 # l'ancien contenu n'est pas relayé
+        with open(self.o.journal, "a") as f:
+            f.write("bavardage\r\n  [connexion] 10:00:00  Faux  192.168.1.20  ->  1 appareil\r\n  [connexion] coup")
+        self.g._relayer_connexions(self.o)
+        self.assertEqual(lignes, ["  [connexion] 10:00:00  Faux  192.168.1.20  ->  1 appareil"])
+        with open(self.o.journal, "a") as f:
+            f.write("ée\n")
+        self.g._relayer_connexions(self.o)                 # la ligne coupée arrive entière
+        self.assertEqual(lignes[-1], "  [connexion] coupée")
+        with open(self.o.journal, "w") as f:               # journal renouvelé au démarrage
+            f.write("  [connexion] neuf\n")
+        self.g._relayer_connexions(self.o)
+        self.assertEqual(lignes[-1], "  [connexion] neuf")
+
     def test_mise_a_jour_automatique(self):
         self.g.verifier_launcher = lambda: None         # pas de GitHub pour le launcher lui-même
         self.action("installer")
