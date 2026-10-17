@@ -1,5 +1,6 @@
 """Réseau : adresse du Raspberry Pi, ports, et le nom « launcher.local » (mDNS, via Avahi)."""
 
+import ipaddress
 import os
 import shutil
 import socket
@@ -18,6 +19,20 @@ def ip_locale():
         return None
     finally:
         s.close()
+
+
+def ip_tailscale():
+    """Adresse Tailscale (100.64/10) du Pi, ou None. 100.100.100.100 est l'adresse
+    interne de Tailscale : sa route passe par tailscale0 (aucun paquet n'est envoyé)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("100.100.100.100", 1))
+        ip = s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+    return ip if ipaddress.ip_address(ip) in ipaddress.ip_network("100.64.0.0/10") else None
 
 
 def nom_machine():

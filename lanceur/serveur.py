@@ -60,6 +60,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     relancer = None                 # fonction : redémarre le launcher (après sa mise à jour)
     gardien = None                  # compte.Gardien : identifiant, mot de passe, sessions
     visites = Visites("launcher")   # les appareils connectés, dans la sortie du launcher
+    timeout = 30                    # une connexion muette ne garde pas un thread pour toujours
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -153,6 +154,9 @@ class Lanceur(SimpleHTTPRequestHandler):
         adresses = []
         if infos["ip"]:
             adresses.append({"type": "Réseau", "url": "http://%s%s/" % (infos["ip"], suffixe)})
+        ts = reseau.ip_tailscale()
+        if ts:
+            adresses.append({"type": "Tailscale", "url": "http://%s%s/" % (ts, suffixe)})
         if infos.get("nom_mdns") and self.alias and self.alias.etat in ("annoncé", "nom de la machine"):
             adresses.append({"type": "Nom", "url": "http://%s.local%s/" % (infos["nom_mdns"], suffixe)})
         adresses.append({"type": "Machine", "url": "http://%s.local%s/" % (reseau.nom_machine(), suffixe)})
@@ -183,7 +187,10 @@ class Lanceur(SimpleHTTPRequestHandler):
             o = self.gestionnaire.par_id.get(url.path.rsplit("/", 1)[1])
             if o is None:
                 return self._json({"erreur": "outil inconnu"}, 404)
-            lignes = int(parse_qs(url.query).get("lignes", ["300"])[0])
+            try:
+                lignes = int(parse_qs(url.query).get("lignes", ["300"])[0])
+            except ValueError:
+                lignes = 300
             return self._texte(lire_fin(o.journal, lignes))
         if url.path.startswith("/api/console/"):
             o = self.gestionnaire.par_id.get(url.path.rsplit("/", 1)[1])
@@ -208,8 +215,11 @@ class Lanceur(SimpleHTTPRequestHandler):
         # autorisation CORS (que le launcher ne donne jamais).
         if self.headers.get("X-Launcher") != "1":
             return self._json({"erreur": "requête refusée"}, 403)
-        longueur = int(self.headers.get("Content-Length") or 0)
-        if longueur > 8192:
+        try:
+            longueur = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self._json({"erreur": "requête illisible"}, 400)
+        if not 0 <= longueur <= 8192:   # négatif : read(-1) lirait sans fin
             return self._json({"erreur": "requête trop grande"}, 413)
         corps = self.rfile.read(longueur) if longueur else b""
         morceaux = urlparse(self.path).path.strip("/").split("/")

@@ -64,6 +64,9 @@ def main():
     ip = reseau.ip_locale()
     if ip:
         print("    http://%s%s/" % (ip, suffixe))
+    ts = reseau.ip_tailscale()
+    if ts:
+        print("    http://%s%s/   (Tailscale)" % (ts, suffixe))
     if conf.get("nom_mdns") and not args.sans_mdns:
         print("    http://%s.local%s/" % (conf["nom_mdns"], suffixe))
     print("    http://%s.local%s/" % (reseau.nom_machine(), suffixe), flush=True)

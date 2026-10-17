@@ -112,13 +112,16 @@ class Gardien:
 
     def verifier(self, login, mot_de_passe, ip):
         """Renvoie (jeton de session, None) ou (None, message d'erreur)."""
+        comptes = lire_comptes(self.fichier)
+        if not comptes:
+            return None, "Aucun compte : le créer sur le Raspberry Pi (python3 launcher.py --compte)."
+        # l'essai est compté avant le calcul : des requêtes simultanées ne passent pas toutes
         with self.verrou:
             nombre, jusqu = self.echecs.get(ip, [0, 0])
             if time.time() < jusqu:
                 return None, "Trop d'essais : réessayez dans %d min." % ((jusqu - time.time()) // 60 + 1)
-        comptes = lire_comptes(self.fichier)
-        if not comptes:
-            return None, "Aucun compte : le créer sur le Raspberry Pi (python3 launcher.py --compte)."
+            nombre += 1
+            self.echecs[ip] = [0, time.time() + BLOCAGE] if nombre >= ESSAIS else [nombre, 0]
         # identifiant inconnu : le calcul est fait quand même (même durée, rien n'est révélé)
         compte = _trouver(comptes, login)
         modele = compte or comptes[0]
@@ -127,8 +130,6 @@ class Gardien:
         bon = compte is not None and hmac.compare_digest(essai["empreinte"], compte["empreinte"])
         with self.verrou:
             if not bon:
-                nombre += 1
-                self.echecs[ip] = [0, time.time() + BLOCAGE] if nombre >= ESSAIS else [nombre, 0]
                 reste = ESSAIS - nombre
                 return None, ("Identifiant ou mot de passe incorrect"
                               + (" (%d essai(s) restant(s))." % reste if 0 < reste < ESSAIS else
