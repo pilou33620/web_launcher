@@ -262,7 +262,8 @@ python3 launcher.py --compte     # identifiant nouveau : ajouté ; existant : no
 - Changer le mot de passe d'un compte déconnecte ses autres appareils ; supprimer un compte
   déconnecte tous ses appareils. Les autres comptes ne sont pas touchés.
 - Mot de passe oublié : `python3 launcher.py --compte` sur le Pi (en SSH).
-- Sans compte créé, la page reste ouverte à tous et l'affiche en rouge.
+- Sans compte créé, seul le Pi lui-même (127.0.0.1) a accès, et la page l'affiche en rouge ;
+  les autres appareils sont renvoyés vers la connexion, qui demande de créer le compte.
 
 ## Sécurité
 

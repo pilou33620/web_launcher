@@ -104,10 +104,18 @@ class Lanceur(SimpleHTTPRequestHandler):
             return None
         return biscuit[COOKIE].value if COOKIE in biscuit else None
 
+    def ce_poste(self):
+        try:
+            ip = ipaddress.ip_address(self.client_address[0].split("%")[0])
+        except (ValueError, IndexError, TypeError):
+            return False
+        return (getattr(ip, "ipv4_mapped", None) or ip).is_loopback
+
     def connecte(self):
-        """Sans compte créé, tout le monde entre (la page le signale en rouge)."""
+        """Sans compte créé, seul ce poste entre (la page le signale en rouge) : un autre
+        appareil du réseau ne peut pas prendre la main ni créer le premier compte."""
         self.login = self.gardien.utilisateur(self._jeton_session())
-        if self.login is None and self.gardien.actif:
+        if self.login is None and (self.gardien.actif or not self.ce_poste()):
             return False
         self.visites.noter(self.client_address[0], self.login)
         return True

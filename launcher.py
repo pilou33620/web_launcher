@@ -50,7 +50,7 @@ def main():
     serveur.Lanceur.gestionnaire = gestionnaire
     serveur.Lanceur.gardien = compte.Gardien()
     if not serveur.Lanceur.gardien.actif:
-        print("  [!] Aucun mot de passe : tout appareil du réseau peut tout faire. "
+        print("  [!] Aucun mot de passe : seul ce poste (127.0.0.1) a accès, les autres appareils sont refusés. "
               "Créer le compte : python3 launcher.py --compte", flush=True)
     serveur.Lanceur.alias = alias
     serveur.Lanceur.relancer = staticmethod(lambda: (alias.arreter(), serveur.relancer_processus()))

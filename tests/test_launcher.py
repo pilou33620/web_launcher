@@ -344,6 +344,14 @@ class Compte(unittest.TestCase):
         self.assertEqual(statut("/", cookie=cookie)[0], 200)
         statut("/api/deconnexion", b"", cookie=cookie)
         self.assertEqual(statut("/api/etat", cookie=cookie)[0], 401)
+        # sans compte : ce poste entre, un autre appareil est refusé
+        serveur.Lanceur.gardien = compte.Gardien(self.fichier + ".absent", self.sessions)
+        self.assertEqual(statut("/api/etat")[0], 200)
+        self.addCleanup(setattr, serveur.Lanceur, "ce_poste", serveur.Lanceur.ce_poste)
+        serveur.Lanceur.ce_poste = lambda self: False
+        self.assertEqual(statut("/api/etat")[0], 401)
+        self.assertEqual(statut("/api/comptes/ajouter", b'{"login":"x","mot_de_passe":"12345678"}')[0], 401)
+        self.assertEqual(statut("/")[0], 302)
 
 
 class Configuration(unittest.TestCase):

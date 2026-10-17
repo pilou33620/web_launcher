@@ -390,7 +390,7 @@ function rendreReglages() {
         <button class="bouton danger" type="button" data-compte-suppr="${echap(c.login)}"${comptes.length < 2 ? " disabled title=\"Le dernier compte ne peut pas être supprimé\"" : ""}>Supprimer</button>
         ${form}
       </div>`;
-  }).join("") : `<p class="message erreur">Aucun compte : la page est ouverte à tout le réseau. Ajoutez-en un ci-dessous.</p>`;
+  }).join("") : `<p class="message erreur">Aucun compte : seul ce poste a accès. Ajoutez-en un ci-dessous pour les autres appareils.</p>`;
 }
 
 async function apresReglage(message) {
