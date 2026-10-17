@@ -256,7 +256,7 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
-            if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"]):
+            if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"], ["eteindre"], ["allumer"]):
                 return self._claude(morceaux[2], corps)
             if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
                 return self._comptes(morceaux[2], corps)
@@ -340,7 +340,7 @@ class Lanceur(SimpleHTTPRequestHandler):
         return self._json({"erreur": erreur}, 400) if erreur else self._json({"ok": True})
 
     def _claude(self, action, corps):
-        """Sessions Claude Code : ajouter/retirer un dossier, redémarrer un dossier ou tout."""
+        """Sessions Claude Code : ajouter/retirer un dossier, redémarrer/éteindre/allumer un dossier ou tout."""
         try:
             d = json.loads(corps.decode("utf-8") or "{}")
             chemin = d.get("chemin")
@@ -352,7 +352,8 @@ class Lanceur(SimpleHTTPRequestHandler):
             if action == "activer":
                 claude.activer(chemin, bool(d.get("actif")))
             else:
-                claude.redemarrer(chemin)
+                {"redemarrer": claude.redemarrer, "eteindre": claude.eteindre,
+                 "allumer": claude.allumer}[action](chemin)
         except ValueError as exc:
             return self._json({"erreur": str(exc)}, 400)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:

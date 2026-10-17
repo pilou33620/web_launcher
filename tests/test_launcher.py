@@ -432,6 +432,17 @@ class Claude(unittest.TestCase):
         with self.assertRaises(ValueError):
             claude.redemarrer("a/b")                       # plus dans la liste
         self.assertEqual(lancees, [(claude.SERVEURS,), (claude.SERVEURS,)])
+        lancees.clear()
+        for fn in (claude.eteindre, claude.allumer):
+            with self.assertRaises(ValueError):
+                fn("a/b")
+        claude.eteindre("c")                               # reste dans la liste
+        claude.allumer("c")
+        claude.eteindre()
+        claude.allumer()
+        self.assertEqual(claude.lire_liste(), ["c"])
+        self.assertEqual(lancees, [(claude.SERVEURS,), ("systemctl", "--user", "stop", claude.SERVICE),
+                                   ("systemctl", "--user", "start", claude.SERVICE)])
 
 
 if __name__ == "__main__":

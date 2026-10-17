@@ -461,6 +461,7 @@ async function rendreClaude() {
     <div class="reglage" data-chemin="${echap(x.chemin)}">
       <div class="nom">${echap(x.chemin)}<small>${statut(x)}</small></div>
       <label><input type="checkbox" data-claude-actif${x.actif ? " checked" : ""}> Session</label>
+      <button class="bouton secondaire" type="button" data-claude-${x.en_marche ? "eteindre" : "allumer"}${x.actif ? "" : " disabled"}>${x.en_marche ? "Éteindre" : "Allumer"}</button>
       <button class="bouton secondaire" type="button" data-claude-redemarrer${x.actif ? "" : " disabled"}>Redémarrer</button>
     </div>`).join("");
 }
@@ -482,11 +483,20 @@ $("#claude-tout").onclick = () => {
   if (confirm("Redémarrer toutes les sessions Claude Code ?"))
     actionClaude("/api/claude/redemarrer", {}, "Sessions Claude Code redémarrées");
 };
+$("#claude-eteindre").onclick = () => {
+  if (confirm("Éteindre toutes les sessions Claude Code ?"))
+    actionClaude("/api/claude/eteindre", {}, "Sessions Claude Code éteintes");
+};
+$("#claude-allumer").onclick = () => actionClaude("/api/claude/allumer", {}, "Sessions Claude Code allumées");
 $("#claude-dossiers").addEventListener("click", (ev) => {
   const chemin = ev.target.closest("[data-chemin]")?.dataset.chemin;
   if (ev.target.matches("[data-claude-actif]")) {
     const actif = ev.target.checked;
     actionClaude("/api/claude/activer", { chemin, actif }, `${chemin} : session ${actif ? "ouverte" : "arrêtée"}`);
+  } else if (ev.target.matches("[data-claude-eteindre]")) {
+    actionClaude("/api/claude/eteindre", { chemin }, `${chemin} : session éteinte`);
+  } else if (ev.target.matches("[data-claude-allumer]")) {
+    actionClaude("/api/claude/allumer", { chemin }, `${chemin} : session allumée`);
   } else if (ev.target.matches("[data-claude-redemarrer]")) {
     actionClaude("/api/claude/redemarrer", { chemin }, `${chemin} : session redémarrée`);
   }

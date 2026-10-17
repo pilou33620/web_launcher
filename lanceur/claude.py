@@ -93,12 +93,32 @@ def activer(chemin, actif):
         _lancer("tmux", "kill-session", "-t", "=" + session(chemin))
 
 
-def redemarrer(chemin=None):
-    """Sans chemin : tout le service (session Documents comprise)."""
-    if chemin is None:
-        return _lancer("systemctl", "--user", "restart", SERVICE)
+def _tuer(chemin):
     if chemin not in lire_liste():
         raise ValueError("dossier sans session Claude")
     if session(chemin) in en_marche():
         _lancer("tmux", "kill-session", "-t", "=" + session(chemin))
+
+
+def eteindre(chemin=None):
+    """Sans chemin : tout le service. Le dossier reste dans la liste (revient au prochain démarrage)."""
+    if chemin is None:
+        return _lancer("systemctl", "--user", "stop", SERVICE)
+    _tuer(chemin)
+
+
+def allumer(chemin=None):
+    """Sans chemin : tout le service. Avec : ouvre les sessions manquantes de la liste."""
+    if chemin is None:
+        return _lancer("systemctl", "--user", "start", SERVICE)
+    if chemin not in lire_liste():
+        raise ValueError("dossier sans session Claude")
+    _ouvrir()
+
+
+def redemarrer(chemin=None):
+    """Sans chemin : tout le service (session Documents comprise)."""
+    if chemin is None:
+        return _lancer("systemctl", "--user", "restart", SERVICE)
+    _tuer(chemin)
     _ouvrir()
