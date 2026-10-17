@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -11,7 +12,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import compte, config, depot, reseau
+from . import claude, compte, config, depot, reseau
 from .gestionnaire import OccupeErreur
 
 DOSSIER_WEB = os.path.join(config.RACINE, "web")
@@ -191,6 +192,8 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._rediriger("/connexion.html")
         if url.path == "/api/etat":
             return self._json(self.etat())
+        if url.path == "/api/claude":
+            return self._json(claude.etat())
         if url.path.startswith("/api/journal/"):
             o = self.gestionnaire.par_id.get(url.path.rsplit("/", 1)[1])
             if o is None:
@@ -253,6 +256,8 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
+            if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"]):
+                return self._claude(morceaux[2], corps)
             if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
                 return self._comptes(morceaux[2], corps)
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4 and morceaux[3] == "reglages":
@@ -333,6 +338,28 @@ class Lanceur(SimpleHTTPRequestHandler):
         else:
             return self._json({"erreur": "route inconnue"}, 404)
         return self._json({"erreur": erreur}, 400) if erreur else self._json({"ok": True})
+
+    def _claude(self, action, corps):
+        """Sessions Claude Code : ajouter/retirer un dossier, redémarrer un dossier ou tout."""
+        try:
+            d = json.loads(corps.decode("utf-8") or "{}")
+            chemin = d.get("chemin")
+            if chemin is not None:
+                chemin = str(chemin)[:300]
+        except (ValueError, AttributeError):
+            return self._json({"erreur": "demande illisible"}, 400)
+        try:
+            if action == "activer":
+                claude.activer(chemin, bool(d.get("actif")))
+            else:
+                claude.redemarrer(chemin)
+        except ValueError as exc:
+            return self._json({"erreur": str(exc)}, 400)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            return self._json({"erreur": str(exc)[:300]}, 500)
+        self.visites.dire("%s (%s)" % (self.client_address[0], self.login or "sans compte"),
+                          "claude %s %s" % (action, chemin or "tout"))
+        return self._json({"ok": True})
 
     def _maj_launcher(self):
         g = self.gestionnaire

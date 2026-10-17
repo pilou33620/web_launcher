@@ -11,10 +11,11 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lanceur import compte, config, reseau  # noqa: E402
+from lanceur import claude, compte, config, reseau  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire, OccupeErreur  # noqa: E402
 
 SERVEUR = """import http.server, sys
@@ -406,6 +407,31 @@ class Configuration(unittest.TestCase):
         self.assertEqual(len(ports), len(set(ports)))
         for o in conf["outils"]:
             self.assertIn("{port}", o["commande"])
+
+
+class Claude(unittest.TestCase):
+    def test_dossiers_et_liste(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for d in ("a/.git", "a/b/.git", "a/pas_git", "c", ".cache", "x y"):
+            os.makedirs(os.path.join(tmp, d))
+        lancees = []
+        for nom, valeur in (("DOCUMENTS", tmp), ("LISTE", os.path.join(tmp, "liste")),
+                            ("_lancer", lambda *c: lancees.append(c)), ("en_marche", lambda: {"claude"})):
+            p = mock.patch.object(claude, nom, valeur)
+            p.start()
+            self.addCleanup(p.stop)
+        self.assertEqual(claude.candidats(), ["a", "a/b", "c"])
+        for chemin in ("../etc", "x y", "a/pas_git", ".cache"):
+            with self.assertRaises(ValueError):
+                claude.activer(chemin, True)
+        claude.activer("a/b", True)
+        claude.activer("c", True)
+        claude.activer("a/b", False)
+        self.assertEqual(claude.lire_liste(), ["c"])
+        with self.assertRaises(ValueError):
+            claude.redemarrer("a/b")                       # plus dans la liste
+        self.assertEqual(lancees, [(claude.SERVEURS,), (claude.SERVEURS,)])
 
 
 if __name__ == "__main__":

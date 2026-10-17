@@ -31,6 +31,7 @@
   <span class="espace"></span>
   <button class="lien" data-terminal="">Terminaux ↗</button>
   <button class="lien" id="verifier-tout">Vérifier les mises à jour</button>
+  <button class="lien" id="ouvrir-claude">Claude Code</button>
   <button class="lien" id="ouvrir-reglages">Réglages</button>
   <button class="lien" id="deconnexion" hidden>Déconnexion</button>
 </section>
@@ -70,6 +71,20 @@
       <input name="mdp2" type="password" placeholder="Encore une fois" autocomplete="new-password" required>
       <button class="bouton" type="submit">Ajouter</button>
     </form>
+  </div>
+</dialog>
+
+<dialog id="claude">
+  <div class="journal-tete">
+    <strong>Claude Code</strong>
+    <span class="espace"></span>
+    <button class="bouton danger" id="claude-tout">Tout redémarrer</button>
+    <button class="lien" id="claude-fermer">Fermer ✕</button>
+  </div>
+  <div class="reglages-corps">
+    <p class="aide">Dossiers proposés dans « Choisir un dossier » de l'app Claude. Cocher ouvre la session, décocher l'arrête.
+      « Tout redémarrer » relance aussi la session Documents (une conversation lancée depuis Claude est coupée).</p>
+    <div id="claude-dossiers"></div>
   </div>
 </dialog>
 

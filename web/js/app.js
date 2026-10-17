@@ -450,6 +450,48 @@ $("#reglages").addEventListener("click", async (ev) => {
   }
 });
 
+/* -- Claude Code : dossiers des sessions remote-control, redémarrage ------- */
+
+async function rendreClaude() {
+  const r = await fetch("/api/claude", { cache: "no-store" });
+  if (r.status === 401) return location.replace("/connexion.html");
+  const d = await r.json();
+  const statut = (x) => !x.actif ? "" : x.en_marche ? "En marche" : d.service ? "Arrêtée" : "Service arrêté";
+  $("#claude-dossiers").innerHTML = d.dossiers.map((x) => `
+    <div class="reglage" data-chemin="${echap(x.chemin)}">
+      <div class="nom">${echap(x.chemin)}<small>${statut(x)}</small></div>
+      <label><input type="checkbox" data-claude-actif${x.actif ? " checked" : ""}> Session</label>
+      <button class="bouton secondaire" type="button" data-claude-redemarrer${x.actif ? "" : " disabled"}>Redémarrer</button>
+    </div>`).join("");
+}
+
+async function actionClaude(url, corps, message) {
+  $("#claude").inert = true;                // une action à la fois
+  try { await poster(url, corps); toast(message); }
+  catch (e) { toast(e.message, true); }
+  finally { $("#claude").inert = false; }
+  await rendreClaude();
+}
+
+$("#ouvrir-claude").onclick = async () => {
+  try { await rendreClaude(); $("#claude").showModal(); }
+  catch (e) { toast(e.message, true); }
+};
+$("#claude-fermer").onclick = () => $("#claude").close();
+$("#claude-tout").onclick = () => {
+  if (confirm("Redémarrer toutes les sessions Claude Code ?"))
+    actionClaude("/api/claude/redemarrer", {}, "Sessions Claude Code redémarrées");
+};
+$("#claude-dossiers").addEventListener("click", (ev) => {
+  const chemin = ev.target.closest("[data-chemin]")?.dataset.chemin;
+  if (ev.target.matches("[data-claude-actif]")) {
+    const actif = ev.target.checked;
+    actionClaude("/api/claude/activer", { chemin, actif }, `${chemin} : session ${actif ? "ouverte" : "arrêtée"}`);
+  } else if (ev.target.matches("[data-claude-redemarrer]")) {
+    actionClaude("/api/claude/redemarrer", { chemin }, `${chemin} : session redémarrée`);
+  }
+});
+
 $("#deconnexion").onclick = async () => {
   await poster("/api/deconnexion").catch(() => {});
   location.replace("/connexion.html");
