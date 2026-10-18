@@ -96,8 +96,9 @@ Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour mainten
   modifiés sur le Pi, la mise à jour est refusée et les fichiers sont nommés.
 - Les mises à jour automatiques propres à chaque outil sont coupées (`--maj 0`,
   `--no-update`, `--sans-maj`) : le launcher est le seul à mettre à jour, et prévient.
-- Le **launcher lui-même** se met à jour depuis le pied de page. Il redémarre en quelques
-  secondes ; les outils continuent de tourner et sont retrouvés.
+- Le **launcher lui-même** se met à jour depuis le pied de page : **Vérifier et installer sa
+  mise à jour** regarde GitHub, installe et redémarre en un clic, puis la page se recharge et
+  affiche l'ancienne et la nouvelle version. Les outils continuent de tourner et sont retrouvés.
 - **Redémarrer le launcher** (pied de page) : relance le serveur avec le code présent sur le
   Pi, sans mot de passe ni terminal (comme `sudo systemctl restart web_launcher`). Les
   outils continuent de tourner ; les mises à jour sont vérifiées dans la foulée.

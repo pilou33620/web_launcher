@@ -102,7 +102,7 @@ function rendreEntete() {
     ${m.erreur ? `<span class="message erreur">${echap(m.erreur)}</span>` : ""}
     ${l.action ? `<span class="statut attente">${echap(l.action)}</span>`
       : m.nombre ? `<button class="bouton accent" data-launcher="mettre_a_jour">Mettre à jour le launcher (${m.nombre})</button>`
-      : `<button class="lien" data-launcher="verifier">Vérifier sa mise à jour</button>`}
+      : `<button class="lien" data-launcher="verifier">Vérifier et installer sa mise à jour</button>`}
     ${l.action ? "" : `<button class="lien" data-launcher="redemarrer">Redémarrer le launcher</button>`}`;
   if ($("#pied").dataset.sig !== pied) {
     $("#pied").innerHTML = pied;
@@ -236,8 +236,16 @@ async function actualiser() {
   try {
     const r = await fetch("/api/etat", { cache: "no-store" });
     if (r.status === 401) return location.replace("/connexion.html");
-    etat = await r.json();
+    const nouveau = await r.json();
+    // launcher redémarré (mise à jour ou bouton) : recharger pour prendre la nouvelle page
+    if (etat && nouveau.launcher.demarre !== etat.launcher.demarre) return location.reload();
+    etat = nouveau;
     rendre();
+    const avant = sessionStorage.getItem("maj_launcher");
+    if (avant && etat.launcher.version) {
+      sessionStorage.removeItem("maj_launcher");
+      toast(`Launcher mis à jour et redémarré : ${avant} → ${etat.launcher.version.commit}`);
+    }
   } catch (e) {
     $("#sous-titre").textContent = "Launcher injoignable… nouvelle tentative";
   }
@@ -330,6 +338,17 @@ document.addEventListener("click", async (ev) => {
     if (action === "mettre_a_jour" && !confirm("Mettre à jour le launcher ? Il redémarre quelques secondes, les outils continuent de tourner.")) return;
     if (action === "redemarrer" && !confirm("Redémarrer le launcher ? La page est coupée quelques secondes, les outils continuent de tourner. Les mises à jour sont vérifiées au redémarrage.")) return;
     try {
+      if (action === "verifier") {
+        const r = await poster("/api/launcher/verifier");
+        if (r.maj.erreur) return toast(r.maj.erreur, true);
+        if (!r.maj.nombre) return toast("Le launcher est à jour");
+        toast(`${r.maj.nombre} mise(s) à jour trouvée(s), installation…`);
+        const avant = etat.launcher.version && etat.launcher.version.commit;
+        const m = await poster("/api/launcher/mettre_a_jour");
+        if (avant && /redémarrage/.test(m.message)) sessionStorage.setItem("maj_launcher", avant);
+        toast(m.message);
+        return actualiser();
+      }
       const r = await poster(`/api/launcher/${action}`);
       toast(r.message || (action === "verifier" ? (r.maj.erreur || (r.maj.nombre ? `${r.maj.nombre} mise(s) à jour disponible(s)` : "Le launcher est à jour")) : "OK"), !!(r.maj && r.maj.erreur));
     } catch (e) { toast(e.message, true); }

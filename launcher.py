@@ -11,6 +11,7 @@ import argparse
 import os
 import sys
 import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -56,7 +57,7 @@ def main():
     serveur.Lanceur.relancer = staticmethod(lambda: (alias.arreter(), serveur.relancer_processus()))
     serveur.Lanceur.infos = {"port": port, "nom_mdns": conf.get("nom_mdns"),
                              "nom_machine": reseau.nom_machine(),
-                             "dossier_outils": conf["dossier_outils"]}
+                             "dossier_outils": conf["dossier_outils"], "demarre": int(time.time())}
     threading.Thread(target=gestionnaire.surveiller, daemon=True).start()
 
     suffixe = "" if port == 80 else ":%d" % port
