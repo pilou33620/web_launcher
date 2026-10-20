@@ -475,11 +475,12 @@ async function rendreClaude() {
   const r = await fetch("/api/claude", { cache: "no-store" });
   if (r.status === 401) return location.replace("/connexion.html");
   const d = await r.json();
-  const statut = (x) => !x.actif ? "" : x.en_marche ? "En marche" : d.service ? "Arrêtée" : "Service arrêté";
+  const statut = (x) => !x.actif ? "" : x.confiance ? "Attend votre confiance" : x.en_marche ? "En marche" : d.service ? "Arrêtée" : "Service arrêté";
   $("#claude-dossiers").innerHTML = d.dossiers.map((x) => `
     <div class="reglage" data-chemin="${echap(x.chemin)}">
       <div class="nom">${echap(x.chemin)}<small>${statut(x)}</small></div>
       <label><input type="checkbox" data-claude-actif${x.actif ? " checked" : ""}> Session</label>
+      ${x.confiance ? '<button class="bouton secondaire" type="button" data-claude-confiance>Faire confiance</button>' : ""}
       <button class="bouton secondaire" type="button" data-claude-${x.en_marche ? "eteindre" : "allumer"}${x.actif ? "" : " disabled"}>${x.en_marche ? "Éteindre" : "Allumer"}</button>
       <button class="bouton secondaire" type="button" data-claude-redemarrer${x.actif ? "" : " disabled"}>Redémarrer</button>
     </div>`).join("");
@@ -512,6 +513,9 @@ $("#claude-dossiers").addEventListener("click", (ev) => {
   if (ev.target.matches("[data-claude-actif]")) {
     const actif = ev.target.checked;
     actionClaude("/api/claude/activer", { chemin, actif }, `${chemin} : session ${actif ? "ouverte" : "arrêtée"}`);
+  } else if (ev.target.matches("[data-claude-confiance]")) {
+    if (confirm(`Faire confiance au dossier ${chemin} ? Ses sessions pourront lire, modifier et exécuter des fichiers.`))
+      actionClaude("/api/claude/confiance", { chemin }, `${chemin} : confiance accordée`);
   } else if (ev.target.matches("[data-claude-eteindre]")) {
     actionClaude("/api/claude/eteindre", { chemin }, `${chemin} : session éteinte`);
   } else if (ev.target.matches("[data-claude-allumer]")) {

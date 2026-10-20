@@ -67,8 +67,8 @@ def version(dossier):
 
 def fichiers_modifies(dossier):
     """Fichiers suivis modifiés localement (ils bloqueraient la mise à jour)."""
-    sortie = git(dossier, "status", "--porcelain", "--untracked-files=no", delai=20)
-    return [l[3:] for l in sortie.splitlines() if l.strip()]
+    # pas « status --porcelain » : git() retire l'espace de tête de la 1re ligne, coupant son nom
+    return git(dossier, "diff", "--name-only", "HEAD", delai=20).splitlines()
 
 
 def verifier(dossier):

@@ -448,6 +448,19 @@ class Claude(unittest.TestCase):
         self.assertEqual(lancees, [(claude.SERVEURS,), ("systemctl", "--user", "stop", claude.SERVICE),
                                    ("systemctl", "--user", "start", claude.SERVICE)])
 
+    def test_confiance(self):
+        lancees = []
+        with mock.patch.object(claude, "lire_liste", lambda: ["c"]), \
+                mock.patch.object(claude, "_lancer", lambda *c: lancees.append(c)):
+            with self.assertRaises(ValueError):
+                claude.faire_confiance("autre")
+            with mock.patch.object(claude, "confiance_attendue", lambda c: False):
+                with self.assertRaises(ValueError):
+                    claude.faire_confiance("c")
+            with mock.patch.object(claude, "confiance_attendue", lambda c: True):
+                claude.faire_confiance("c")
+        self.assertEqual(lancees, [("tmux", "send-keys", "-t", "=c", "y", "Enter")])
+
 
 if __name__ == "__main__":
     unittest.main()

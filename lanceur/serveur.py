@@ -256,7 +256,7 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
-            if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"], ["eteindre"], ["allumer"]):
+            if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"], ["eteindre"], ["allumer"], ["confiance"]):
                 return self._claude(morceaux[2], corps)
             if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
                 return self._comptes(morceaux[2], corps)
@@ -351,6 +351,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         try:
             if action == "activer":
                 claude.activer(chemin, bool(d.get("actif")))
+            elif action == "confiance":
+                claude.faire_confiance(chemin)
             else:
                 {"redemarrer": claude.redemarrer, "eteindre": claude.eteindre,
                  "allumer": claude.allumer}[action](chemin)
