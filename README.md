@@ -83,10 +83,10 @@ Le menu **…** : redémarrer, vérifier la mise à jour, mettre à jour mainten
   - **à la main** : **Vérifier les mises à jour** (en haut, ou menu **…** d'un outil)
     regarde GitHub et affiche les nouveautés ; **Mettre à jour** les installe ;
   - **vérification automatique à chaque démarrage du launcher** (30 s après l'allumage du
-    Pi, quelques secondes après un redémarrage du launcher), **puis toutes les 6 heures** :
-    les nouveautés s'affichent sur les cartes, rien n'est installé ; l'heure de la
+    Pi, quelques secondes après un redémarrage du launcher), **puis toutes les heures** :
+    les nouveautés s'affichent sur les cartes ; l'heure de la
     prochaine vérification est en bas de la page ;
-  - **Mise à jour auto** (menu **…**, outil par outil, désactivée par défaut) : à chaque
+  - **Mise à jour auto** (menu **…**, outil par outil, activée par défaut) : à chaque
     vérification automatique, la nouvelle version est installée et l'outil redémarre
     (quelques secondes d'interruption). Badge *MAJ auto* sur la carte.
 
@@ -180,7 +180,7 @@ tout de suite, sans redémarrer le launcher. Le panneau gère aussi les **compte
 
 Les réglages par défaut sont dans `outils.json` : la liste des outils (dépôt GitHub, port,
 commande de lancement), le port du launcher (80), le dossier `~/Documents`, la vérification
-GitHub toutes les 6 h. **Ne pas modifier ce fichier sur le Pi** : il est suivi par git, et
+GitHub toutes les heures. **Ne pas modifier ce fichier sur le Pi** : il est suivi par git, et
 une fois modifié, il bloquerait les mises à jour du launcher.
 
 Pour changer un réglage, créer à côté un fichier `config.local.json` (jamais envoyé sur
@@ -190,7 +190,7 @@ GitHub, jamais touché par les mises à jour) avec **seulement ce qui change**. 
 |---|---|
 | Un port est déjà pris : web_menu sur 8000 au lieu de 8080 | `{ "outils": [ { "id": "web_menu", "port": 8000 } ] }` |
 | Cacher un outil qu'on n'utilise pas | `{ "outils": [ { "id": "web_conquete", "masque": true } ] }` |
-| Vérifier GitHub toutes les 12 h au lieu de 6 | `{ "verification_maj_heures": 12 }` |
+| Vérifier GitHub toutes les 12 h au lieu de toutes les heures | `{ "verification_maj_heures": 12 }` |
 | Ne vérifier GitHub qu'au démarrage du launcher et sur clic (la *Mise à jour auto* n'agit alors qu'au démarrage) | `{ "verification_maj_heures": 0 }` |
 | Un autre nom que `launcher.local` (ici `maison.local`) | `{ "nom_mdns": "maison" }` |
 | Ne pas annoncer de nom `.local` | `{ "nom_mdns": null }` |

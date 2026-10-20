@@ -159,6 +159,8 @@ class FauxOutil(unittest.TestCase):
         self.action("demarrer")
         self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
         self.publier("v2")
+        self.assertTrue(self.o.maj_auto)                # activée par défaut
+        self.g.regler_maj_auto("faux", False)
         self.g.verifier_tous()                          # sans « MAJ auto » : vu, pas installé
         self.assertEqual(self.o.maj["nombre"], 1)
         self.assertEqual(self.page(), "v1")
@@ -377,6 +379,8 @@ class Configuration(unittest.TestCase):
         loc = os.path.join(tmp, "l.json")
         with open(loc, "w") as f:
             json.dump({"verification_maj_heures": 12}, f)
+        etat, config.ETAT = config.ETAT, os.path.join(tmp, "etat.json")   # ne pas écraser l'état réel du Pi
+        self.addCleanup(setattr, config, "ETAT", etat)
         p1, p2 = port_libre(), port_libre()
         conf = {"dossier_outils": tmp, "port": 80, "port_secours": 8090, "ordre": ["a", "b"],
                 "outils": [{"id": "a", "nom": "A", "port": p1, "depot": "x"},

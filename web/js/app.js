@@ -144,7 +144,7 @@ function menuPlus(o) {
         <button data-action="redemarrer"${d(o.installe && !occupe && o.phase !== "externe")}>Redémarrer</button>
         <button data-action="verifier"${d(o.installe && !occupe)}>Vérifier la mise à jour</button>
         <button data-action="mettre_a_jour"${d(o.installe && !occupe)}>Mettre à jour maintenant</button>
-        <button data-maj-auto="${o.id}"${d(o.installe && etat.launcher.heures_maj > 0)}>${o.maj_auto ? "✓ " : ""}Mise à jour auto (toutes les ${etat.launcher.heures_maj || 6} h)</button>
+        <button data-maj-auto="${o.id}"${d(o.installe && etat.launcher.heures_maj > 0)}>${o.maj_auto ? "✓ " : ""}Mise à jour auto (toutes les ${etat.launcher.heures_maj || 1} h)</button>
         <button data-terminal="${o.id}">Terminal ↗</button>
         <button data-journal="${o.id}">Voir le journal</button>
         <button data-copier="${echap(urlOutil(o))}">Copier l'adresse</button>

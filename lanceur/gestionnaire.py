@@ -63,7 +63,7 @@ class Outil:
         self.lance_le = 0.0
         self.arret_demande = False
         self.voulu = False                  # doit tourner (rallumé au démarrage du Pi)
-        self.maj_auto = False               # installer seul les mises à jour trouvées toutes les 6 h
+        self.maj_auto = True                # installer seul les mises à jour trouvées à chaque vérification
         self.phase = "arrete"
         self.message = ""
         self.code_sortie = None
@@ -149,7 +149,7 @@ class Gestionnaire:
         self.verrou_etat = threading.Lock()
         self.launcher_maj = {"nombre": 0, "nouveautes": [], "modifies": [], "verifie_le": None, "erreur": None}
         self.launcher_action = None
-        self.heures_maj = float(conf.get("verification_maj_heures", 6) or 0)
+        self.heures_maj = float(conf.get("verification_maj_heures", 1) or 0)
         self.prochaine_verif = None         # heure de la prochaine vérification automatique
         self.lus = {}                       # id -> position déjà relayée du journal (_relayer_connexions)
         os.makedirs(config.JOURNAUX, exist_ok=True)
@@ -167,7 +167,7 @@ class Gestionnaire:
         for o in self.outils:
             e = etat.get(o.id, {})
             o.voulu = bool(e.get("voulu"))
-            o.maj_auto = bool(e.get("maj_auto"))
+            o.maj_auto = bool(e.get("maj_auto", True))
             pid = e.get("pid")
             if pid and self._vivant(o, pid) and self._est_a_lui(o, pid):
                 o.pid, o.lance_le, o.phase = pid, heure_lancement(pid), "demarrage"
