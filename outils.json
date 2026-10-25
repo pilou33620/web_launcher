@@ -60,6 +60,19 @@
       "sous_depots": ["WEB_CAO", "WEB_ANTENNA", "WEB_3D"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 20
+    },
+    {
+      "id": "web_theme_H",
+      "nom": "Theme",
+      "suffixe": "Hospital",
+      "description": "Theme Hospital à la tablette (CorsixTH)",
+      "accent": "#ef4444",
+      "icone": "hopital",
+      "depot": "https://github.com/pilou33620/web_theme_H.git",
+      "dossiers": ["web_theme_H"],
+      "port": 8791,
+      "commande": ["{python}", "server.py", "--port", "{port}"],
+      "delai_arret": 15
     }
   ]
 }

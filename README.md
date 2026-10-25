@@ -13,6 +13,7 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | MenuGamelles | [web_menu](https://github.com/pilou33620/web_menu) (privé) | 8080 | `~/Documents/web_menu` |
 | Conquête1790 | [web_conquete](https://github.com/pilou33620/web_conquete) | 8790 | `~/Documents/web_conquete` |
 | WebSuite | [web_suite](https://github.com/pilou33620/web_suite) | 8100 | `~/Documents/web_suite` (ou `WEB_TOOLS`, `WEB_SUITE`) |
+| ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
 
 Python 3.8+ et git, bibliothèque standard uniquement : rien à installer avec pip.
 

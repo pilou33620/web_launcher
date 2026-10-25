@@ -34,7 +34,7 @@ PY="$(command -v python3)"
 "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' || { echo "Python 3.8 ou plus récent est nécessaire."; exit 1; }
 
 # Les web tools lancés jusqu'ici par leur propre service : c'est le launcher qui s'en charge désormais.
-for ancien in gamelles web_conquete; do
+for ancien in gamelles web_conquete web_theme_hospital; do
   if systemctl is-enabled "$ancien" >/dev/null 2>&1; then
     echo
     echo "Le service « $ancien » démarre déjà un web tool à l'allumage."
