@@ -60,7 +60,7 @@ def en_marche():
 
 def confiance_attendue(chemin):
     """Vrai si la session attend la réponse à « Trust <dossier> ? [y/N] » (1re ouverture d'un dossier)."""
-    r = subprocess.run(["tmux", "capture-pane", "-p", "-t", "=" + session(chemin)],
+    r = subprocess.run(["tmux", "capture-pane", "-p", "-t", "=" + session(chemin) + ":"],
                        env=ENV, capture_output=True, text=True)
     return r.returncode == 0 and "[y/N]" in r.stdout
 
@@ -130,7 +130,7 @@ def faire_confiance(chemin):
         raise ValueError("dossier sans session Claude")
     if not confiance_attendue(chemin):
         raise ValueError("aucune confirmation en attente")
-    _lancer("tmux", "send-keys", "-t", "=" + session(chemin), "y", "Enter")
+    _lancer("tmux", "send-keys", "-t", "=" + session(chemin) + ":", "y", "Enter")
 
 
 def redemarrer(chemin=None):
