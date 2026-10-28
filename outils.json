@@ -73,6 +73,20 @@
       "port": 8791,
       "commande": ["{python}", "server.py", "--port", "{port}"],
       "delai_arret": 15
+    },
+    {
+      "id": "web_weather",
+      "nom": "Web",
+      "suffixe": "Weather",
+      "description": "Météo orientée orage : radar, foudre en direct, risque d'orage",
+      "accent": "#2b8cff",
+      "icone": "meteo",
+      "depot": "https://github.com/pilou33620/web_weather.git",
+      "dossiers": ["web_weather"],
+      "port": 8792,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }
