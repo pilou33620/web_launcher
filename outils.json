@@ -87,6 +87,20 @@
       "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_office",
+      "nom": "Circuit",
+      "suffixe": "Story",
+      "description": "Jeu de gestion d'un bureau d'études en électronique",
+      "accent": "#eab308",
+      "icone": "puce",
+      "depot": "https://github.com/pilou33620/web_office.git",
+      "dossiers": ["web_office"],
+      "port": 8793,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }
