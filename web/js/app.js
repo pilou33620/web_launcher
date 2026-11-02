@@ -189,6 +189,7 @@ function carte(o, i) {
 
   const code = o.code_appairage
     ? `<div class="appairage">Code d'appairage <strong>${echap(o.code_appairage.code)}</strong>
+       <button class="copier" data-copier="${echap(o.code_appairage.code)}">copier</button>
        <span>à saisir sur la tablette / le téléphone, valable 10 min (affiché ${ilYa(o.code_appairage.age)})</span></div>` : "";
 
   const erreur = o.phase === "erreur" || /impossible|échou|refus|bloqu|pris par/i.test(o.message || "");
@@ -301,7 +302,7 @@ document.addEventListener("click", async (ev) => {
       t.value = texte; document.body.appendChild(t); t.select();
       document.execCommand("copy"); t.remove();
     }
-    toast("Adresse copiée : " + texte);
+    toast("Copié : " + texte);
     if (menuOuvert) { menuOuvert = null; rendre(); }
     return;
   }
