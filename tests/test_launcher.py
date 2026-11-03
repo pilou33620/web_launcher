@@ -459,7 +459,7 @@ class Claude(unittest.TestCase):
                     claude.faire_confiance("c")
             with mock.patch.object(claude, "confiance_attendue", lambda c: True):
                 claude.faire_confiance("c")
-        self.assertEqual(lancees, [("tmux", "send-keys", "-t", "=c", "y", "Enter")])
+        self.assertEqual(lancees, [("tmux", "send-keys", "-t", "=c:", "y", "Enter")])
 
 
 if __name__ == "__main__":

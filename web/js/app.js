@@ -54,7 +54,7 @@ function hoteOutils() {
   const h = location.hostname;
   if (h === "localhost" || h.startsWith("127.") || h === "::1" || h === "[::1]") return "127.0.0.1";
   if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) return h;   // IP déjà tapée (réseau local, Tailscale 100.x) : on la garde
-  return (etat && etat.launcher.ip) || h;
+  return (etat && (etat.launcher.ici || etat.launcher.ip)) || h;   // un nom (pilou.local, MagicDNS) : l'IP jointe
 }
 const urlOutil = (o) => `http://${hoteOutils()}:${o.port}/`;
 

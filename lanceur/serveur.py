@@ -158,6 +158,9 @@ class Lanceur(SimpleHTTPRequestHandler):
         g = self.gestionnaire
         infos = dict(self.infos)
         infos["ip"] = reseau.ip_locale()
+        # l'adresse que cet appareil a jointe (réseau local ou Tailscale) : les outils s'ouvrent dessus
+        ici = self.connection.getsockname()[0]
+        infos["ici"] = None if ici.startswith("127.") else ici
         port = infos["port"]
         suffixe = "" if port == 80 else ":%d" % port
         adresses = []
