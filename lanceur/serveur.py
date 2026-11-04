@@ -4,13 +4,15 @@ import ipaddress
 import json
 import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 import threading
 import time
 from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from . import claude, compte, config, depot, reseau
 from .gestionnaire import OccupeErreur
@@ -62,6 +64,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     gardien = None                  # compte.Gardien : identifiant, mot de passe, sessions
     visites = Visites("launcher")   # les appareils connectés, dans la sortie du launcher
     timeout = 30                    # une connexion muette ne garde pas un thread pour toujours
+    cadre = "DENY"                  # X-Frame-Options de la réponse (aperçus de temp/ : SAMEORIGIN)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -130,7 +133,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Frame-Options", self.cadre)
         self.send_header("Referrer-Policy", "no-referrer")
         super().end_headers()
 
@@ -218,6 +221,13 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"position": position, "texte": texte, "pid": o.pid,
                                "phase": o.phase, "attend_saisie": o.attend_saisie,
                                "terminal": o.avec_terminal})
+        if url.path == "/api/temp":
+            racine = os.path.join(self.infos["dossier_outils"], "temp")
+            fichiers = lister_temp(racine)
+            return self._json({"dossier": racine, "total": len(fichiers), "fichiers": fichiers[:LISTE_TEMP]})
+        if url.path == "/api/temp/fichier":
+            q = parse_qs(url.query)
+            return self._fichier_temp(q.get("chemin", [""])[0], "apercu" in q)
         if url.path.startswith("/api/"):
             return self._json({"erreur": "route inconnue"}, 404)
         if url.path not in ("/", "/index.html", "/console.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
@@ -310,6 +320,40 @@ class Lanceur(SimpleHTTPRequestHandler):
         except OccupeErreur as exc:
             return self._json({"erreur": str(exc)}, 409)
         return self._json({"erreur": "route inconnue"}, 404)
+
+    def _fichier_temp(self, relatif, apercu):
+        """Un fichier de temp/. Il vient d'une IA, donc rien n'y tourne sur l'origine du launcher :
+        HTML et SVG sont bloqués par CSP, le reste part en texte brut ou en téléchargement."""
+        cible = chemin_temp(os.path.join(self.infos["dossier_outils"], "temp"), relatif)
+        if cible is None:
+            return self._json({"erreur": "fichier introuvable"}, 404)
+        try:
+            genre = genre_temp(cible)
+            f = os.fdopen(os.open(cible, os.O_RDONLY | os.O_NOFOLLOW), "rb")
+        except OSError:
+            return self._json({"erreur": "fichier introuvable"}, 404)
+        with f:
+            taille = os.fstat(f.fileno()).st_size
+            if apercu:
+                texte = f.read(APERCU_TEMP).decode("utf-8", "replace")
+                if taille > APERCU_TEMP:
+                    texte += "\n\n[… suite non affichée : fichier de %d octets]" % taille
+                return self._texte(texte)
+            type_ = type_temp(cible) or ("text/plain; charset=utf-8" if genre == "texte" else "application/octet-stream")
+            self.send_response(200)
+            self.send_header("Content-Type", type_)
+            self.send_header("Content-Length", str(taille))
+            if genre in ("html", "pdf"):
+                self.cadre = "SAMEORIGIN"
+            if genre == "html" or type_ == "image/svg+xml":
+                self.send_header("Content-Security-Policy", CSP_TEMP)
+            if genre == "autre":
+                self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(os.path.basename(cible)))
+            self.end_headers()
+            try:
+                shutil.copyfileobj(f, self.wfile)
+            except OSError:                 # client coupé ou muet : pas une erreur à afficher
+                self.close_connection = True
 
     def _connexion(self, corps):
         try:
@@ -438,6 +482,64 @@ def lire_fin(chemin, lignes):
     except OSError:
         return "(journal vide)"
     return masquer("\n".join(texte.splitlines()[-max(1, min(lignes, 3000)):]))
+
+
+# Types affichés dans le navigateur : les autres fichiers sont du texte brut ou un téléchargement.
+TYPES_TEMP = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+    ".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp", ".svg": "image/svg+xml",
+    ".pdf": "application/pdf", ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+    # shortcut: pas de requêtes Range, Safari iOS ne lit pas ces vidéos ; à ajouter si le besoin vient
+    ".mp4": "video/mp4", ".webm": "video/webm",
+    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".flac": "audio/flac",
+}
+CSP_TEMP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"
+APERCU_TEMP = 1024 * 1024
+LISTE_TEMP = 500
+
+
+def type_temp(chemin):
+    return TYPES_TEMP.get(os.path.splitext(chemin)[1].lower())
+
+
+def genre_temp(chemin):
+    """image, video, audio, pdf, html ; sinon le contenu décide : texte ou autre."""
+    type_ = type_temp(chemin)
+    if type_:
+        prefixe = type_.split("/")[0]
+        return {"application": "pdf", "text": "html"}.get(prefixe, prefixe)
+    with open(chemin, "rb") as f:
+        return "autre" if b"\0" in f.read(4096) else "texte"
+
+
+def lister_temp(racine):
+    """Les fichiers de temp/, sous-dossiers compris, les plus récents d'abord (ni cachés ni liens)."""
+    fichiers = []
+    for dossier, sous, noms in os.walk(racine):
+        sous[:] = [s for s in sous if not s.startswith(".")]
+        for nom in noms:
+            chemin = os.path.join(dossier, nom)
+            try:
+                st = os.lstat(chemin)
+                if nom.startswith(".") or not stat.S_ISREG(st.st_mode):
+                    continue
+                relatif = os.path.relpath(chemin, racine).replace(os.sep, "/")
+                relatif.encode("utf-8")     # nom illisible : il casserait toute la réponse JSON
+                fichiers.append({"chemin": relatif, "taille": st.st_size, "date": int(st.st_mtime),
+                                 "genre": genre_temp(chemin)})
+            except (OSError, UnicodeError):
+                continue
+    fichiers.sort(key=lambda f: (-f["date"], f["chemin"]))
+    return fichiers
+
+
+def chemin_temp(racine, relatif):
+    """Le fichier demandé dans temp/, ou None : ni sortie du dossier, ni fichier caché, ni lien."""
+    if "\0" in relatif or any(not m or m.startswith(".") for m in relatif.split("/")):
+        return None
+    racine = os.path.realpath(racine)
+    cible = os.path.join(racine, relatif)
+    return cible if os.path.realpath(cible) == cible and os.path.isfile(cible) else None
 
 
 def ouvrir(port, port_secours, ecrire=print):

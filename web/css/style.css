@@ -194,6 +194,37 @@ dialog#reglages, dialog#claude {
   background: var(--carte); color: var(--texte); display: none; flex-direction: column;
 }
 dialog#reglages[open], dialog#claude[open] { display: flex; }
+dialog#temp {
+  width: 96vw; height: 92vh; max-width: none; max-height: none; padding: 0; border: 1px solid var(--trait);
+  background: var(--carte); color: var(--texte); display: none; flex-direction: column;
+}
+dialog#temp[open] { display: flex; }
+#temp-dossier { color: var(--faible); }
+#temp-dossier, .temp-tete code { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.temp-corps { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 320px) 1fr; }
+#temp-liste { overflow: auto; border-right: 1px solid var(--trait); }
+#temp-liste .message, .temp-contenu .message { padding: 14px 16px; }
+.temp-fichier {
+  display: block; width: 100%; padding: 10px 14px; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--trait); color: var(--texte); font-size: 13.5px; overflow-wrap: anywhere;
+}
+.temp-fichier:hover, .temp-fichier.choisi { background: var(--carte-2); }
+.temp-fichier small { display: block; margin-top: 2px; color: var(--faible); font-size: 12px; }
+#temp-vue { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.temp-tete { display: flex; gap: 14px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--trait); }
+.temp-tete .lien { flex: none; }
+.temp-contenu { flex: 1; min-height: 0; overflow: auto; }
+.temp-contenu img, .temp-contenu video { display: block; max-width: 100%; margin: 0 auto; background: #fff; }
+.temp-contenu video { background: #000; }
+.temp-contenu audio { display: block; width: 100%; padding: 14px; }
+.temp-contenu iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.temp-contenu pre {
+  margin: 0; padding: 14px 16px; font: 12.5px/1.5 var(--mono); color: #cfd3dc; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .temp-corps { grid-template-columns: 1fr; grid-template-rows: 35% 1fr; }
+  #temp-liste { border-right: 0; border-bottom: 1px solid var(--trait); }
+}
 .reglages-corps .claude-tout { padding-bottom: 12px; }
 .reglages-corps .claude-tout .bouton { flex: 1 1 0; }
 .reglages-corps { padding: 6px 16px 18px; overflow: auto; }

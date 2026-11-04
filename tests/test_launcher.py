@@ -413,11 +413,105 @@ class Configuration(unittest.TestCase):
             self.assertIn("{port}", o["commande"])
 
 
+class Temp(unittest.TestCase):
+    def setUp(self):
+        import threading
+        from lanceur import serveur
+        self.serveur = serveur
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.temp = os.path.join(self.tmp, "temp")
+        os.makedirs(os.path.join(self.temp, "sous"))
+        os.makedirs(os.path.join(self.temp, ".cache"))
+        fichiers = {"a.png": b"\x89PNG\0", "notes.txt": "été".encode(), "sous/rapport.md": b"# r", "page.html": b"<script>",
+                    "image.SVG": b"<svg/>", "doc.pdf": b"%PDF", "bin é.dat": b"a\0b", ".cache/x.txt": b"x", ".cache.txt": b"x"}
+        for nom, contenu in fichiers.items():
+            with open(os.path.join(self.temp, nom), "wb") as f:
+                f.write(contenu)
+        with open(os.path.join(self.tmp, "secret.txt"), "w") as f:
+            f.write("secret")
+        os.symlink(os.path.join(self.tmp, "secret.txt"), os.path.join(self.temp, "lien.txt"))
+        os.symlink(self.tmp, os.path.join(self.temp, "lien_dossier"))
+        os.mkfifo(os.path.join(self.temp, "tube"))
+        with open(os.fsencode(self.temp) + b"/mauvais\xff.txt", "w") as f:
+            f.write("x")
+        self.addCleanup(setattr, serveur.Lanceur, "gardien", serveur.Lanceur.gardien)
+        self.addCleanup(setattr, serveur.Lanceur, "infos", serveur.Lanceur.infos)
+        self.addCleanup(setattr, serveur.Lanceur, "ce_poste", serveur.Lanceur.ce_poste)
+        serveur.Lanceur.gardien = compte.Gardien(os.path.join(self.tmp, "c.json"), os.path.join(self.tmp, "s.json"))
+        serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
+        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        self.base = "http://127.0.0.1:%d" % httpd.server_address[1]
+
+    def demander(self, chemin):
+        import urllib.error
+        import urllib.request
+        try:
+            r = urllib.request.urlopen(self.base + chemin, timeout=5)
+        except urllib.error.HTTPError as e:
+            r = e
+        return r.status, r.headers, r.read()
+
+    def fichier(self, chemin, suite=""):
+        from urllib.parse import quote
+        return self.demander("/api/temp/fichier?chemin=" + quote(chemin, safe="") + suite)
+
+    def test_liste(self):
+        code, _, corps = self.demander("/api/temp")
+        d = json.loads(corps)
+        self.assertEqual(code, 200)
+        self.assertEqual(d["dossier"], self.temp)
+        genres = {f["chemin"]: f["genre"] for f in d["fichiers"]}
+        self.assertEqual(genres, {"a.png": "image", "notes.txt": "texte", "sous/rapport.md": "texte", "page.html": "html",
+                                  "image.SVG": "image", "doc.pdf": "pdf", "bin é.dat": "autre"})
+        os.utime(os.path.join(self.temp, "doc.pdf"), (9999999999, 9999999999))
+        self.assertEqual(self.serveur.lister_temp(self.temp)[0]["chemin"], "doc.pdf")   # le plus récent d'abord
+        self.assertEqual(self.serveur.lister_temp(os.path.join(self.tmp, "absent")), [])
+
+    def test_refus(self):
+        for chemin in ("", "../secret.txt", "sous/../../secret.txt", os.path.join(self.tmp, "secret.txt"), "lien.txt",
+                       "lien_dossier/secret.txt", "tube", "sous", ".cache.txt", ".cache/x.txt", "absent.txt", "a\0b",
+                       "mauvais\ufffd.txt", "sous//rapport.md"):
+            self.assertEqual(self.fichier(chemin)[0], 404, chemin)
+        self.serveur.Lanceur.ce_poste = lambda self: False  # appareil non connecté
+        self.assertEqual(self.demander("/api/temp")[0], 401)
+        self.assertEqual(self.fichier("notes.txt")[0], 401)
+
+    def test_rien_ne_tourne_sur_le_launcher(self):
+        for chemin, type_, cadre, csp in (("a.png", "image/png", "DENY", False), ("notes.txt", "text/plain", "DENY", False),
+                                          ("page.html", "text/html", "SAMEORIGIN", True), ("image.SVG", "image/svg+xml", "DENY", True),
+                                          ("doc.pdf", "application/pdf", "SAMEORIGIN", False)):
+            code, e, _ = self.fichier(chemin)
+            self.assertEqual(code, 200, chemin)
+            self.assertTrue(e["Content-Type"].startswith(type_), chemin)
+            self.assertEqual(e["X-Frame-Options"], cadre, chemin)
+            self.assertEqual(e["X-Content-Type-Options"], "nosniff", chemin)
+            self.assertEqual("sandbox;" in (e["Content-Security-Policy"] or ""), csp, chemin)
+            self.assertIsNone(e["Content-Disposition"], chemin)
+        code, e, corps = self.fichier("bin é.dat")
+        self.assertEqual((code, corps), (200, b"a\0b"))
+        self.assertEqual(e["Content-Type"], "application/octet-stream")
+        self.assertEqual(e["Content-Disposition"], "attachment; filename*=UTF-8''bin%20%C3%A9.dat")
+
+    def test_contenu_et_apercu(self):
+        self.assertEqual(self.fichier("sous/rapport.md")[2], b"# r")
+        self.assertEqual(self.fichier("notes.txt", "&apercu=1")[2], "été".encode())
+        with open(os.path.join(self.temp, "gros.log"), "wb") as f:
+            f.write(b"x" * (self.serveur.APERCU_TEMP + 10))
+        corps = self.fichier("gros.log", "&apercu=1")[2]
+        self.assertLess(len(corps), self.serveur.APERCU_TEMP + 100)
+        self.assertIn(b"suite non affich", corps)
+        self.assertEqual(len(self.fichier("gros.log")[2]), self.serveur.APERCU_TEMP + 10)
+
+
 class Claude(unittest.TestCase):
     def test_dossiers_et_liste(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
-        for d in ("a/.git", "a/b/.git", "a/pas_git", "c", ".cache", "x y"):
+        for d in ("a/.git", "a/b/.git", "a/pas_git", "c", ".cache", "x y", "temp"):
             os.makedirs(os.path.join(tmp, d))
         lancees = []
         for nom, valeur in (("DOCUMENTS", tmp), ("LISTE", os.path.join(tmp, "liste")),

@@ -529,6 +529,71 @@ $("#claude-dossiers").addEventListener("click", (ev) => {
   }
 });
 
+/* -- temp : ce que les IA déposent pour le montrer ------------------------- */
+
+let tempChoisi = null;
+
+const urlTemp = (chemin) => "/api/temp/fichier?chemin=" + encodeURIComponent(chemin);
+const octets = (n) => (n < 1024 ? `${n} o` : n < 1048576 ? `${Math.round(n / 1024)} Ko` : `${(n / 1048576).toFixed(1)} Mo`);
+const VUES_TEMP = {
+  image: (u) => `<img src="${u}" alt="">`,
+  video: (u) => `<video src="${u}" controls></video>`,
+  audio: (u) => `<audio src="${u}" controls></audio>`,
+  pdf: (u, nom) => `<iframe src="${u}" title="${nom}"></iframe>`,
+  html: (u, nom) => `<iframe src="${u}" title="${nom}" sandbox></iframe>`,
+  autre: () => `<p class="message">Pas d'aperçu pour ce type de fichier.</p>`,
+};
+
+async function rendreTemp() {
+  const r = await fetch("/api/temp", { cache: "no-store" });
+  if (r.status === 401) return location.replace("/connexion.html");
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.erreur || "Erreur " + r.status);
+  $("#temp-dossier").textContent = d.dossier + (d.total > d.fichiers.length ? ` · les ${d.fichiers.length} plus récents sur ${d.total}` : "");
+  const html = d.fichiers.map((f) => `
+    <button class="temp-fichier${f.chemin === tempChoisi ? " choisi" : ""}" data-temp="${echap(f.chemin)}" data-genre="${echap(f.genre)}">
+      <span>${echap(f.chemin)}</span>
+      <small>${echap(f.genre)} · ${octets(f.taille)} · ${new Date(f.date * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</small>
+    </button>`).join("") || `<p class="message">Le dossier est vide.</p>`;
+  if ($("#temp-liste").dataset.sig !== html) {     // sans ça, la liste perdrait le focus toutes les 3 s
+    $("#temp-liste").innerHTML = html;
+    $("#temp-liste").dataset.sig = html;
+  }
+}
+
+async function afficherTemp(chemin, genre) {
+  tempChoisi = chemin;
+  const u = echap(urlTemp(chemin)), nom = echap(chemin);
+  $("#temp-vue").innerHTML = `
+    <div class="temp-tete">
+      <code>${nom}</code>
+      <span class="espace"></span>
+      <a class="lien" href="${u}" target="_blank" rel="noopener">Ouvrir ↗</a>
+      <a class="lien" href="${u}" download="${nom.split("/").pop()}">Télécharger</a>
+    </div>
+    <div class="temp-contenu">${genre === "texte" ? "<pre>Chargement…</pre>" : (VUES_TEMP[genre] || VUES_TEMP.autre)(u, nom)}</div>`;
+  await rendreTemp();
+  if (genre !== "texte") return;
+  const r = await fetch(urlTemp(chemin) + "&apercu=1", { cache: "no-store" });
+  const texte = r.ok ? await r.text() : "Fichier introuvable : il a peut-être été supprimé.";
+  if (tempChoisi === chemin) $("#temp-vue pre").textContent = texte;   // un autre fichier a pu être choisi entre-temps
+}
+
+$("#ouvrir-temp").onclick = async () => {
+  try { await rendreTemp(); $("#temp").showModal(); }
+  catch (e) { toast(e.message, true); }
+};
+$("#temp-fermer").onclick = () => $("#temp").close();
+$("#temp").addEventListener("close", () => {        // coupe aussi une vidéo ou un son en cours
+  tempChoisi = null;
+  $("#temp-vue").replaceChildren();
+  rendreTemp().catch(() => {});
+});
+$("#temp-liste").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-temp]");
+  if (b) afficherTemp(b.dataset.temp, b.dataset.genre).catch((e) => toast(e.message, true));
+});
+
 $("#deconnexion").onclick = async () => {
   await poster("/api/deconnexion").catch(() => {});
   location.replace("/connexion.html");
@@ -543,4 +608,5 @@ $("#verifier-tout").onclick = async () => {
 actualiser();
 setInterval(() => { if (!document.hidden) actualiser(); }, 2000);
 setInterval(() => { if (journalOuvert) chargerJournal(); }, 3000);
+setInterval(() => { if ($("#temp").open && !document.hidden) rendreTemp().catch(() => {}); }, 3000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) actualiser(); });

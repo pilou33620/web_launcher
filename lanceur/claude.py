@@ -29,11 +29,11 @@ def _lancer(*cmd):
 
 
 def candidats():
-    """Les dossiers de Documents, et leurs sous-dossiers qui sont des dépôts git."""
+    """Les dossiers de Documents (sauf temp, simple dépôt de fichiers), et leurs sous-dossiers qui sont des dépôts git."""
     trouves = []
     for nom in sorted(os.listdir(DOCUMENTS)):
         haut = os.path.join(DOCUMENTS, nom)
-        if not NOM_SUR.match(nom) or nom.startswith(".") or not os.path.isdir(haut):
+        if not NOM_SUR.match(nom) or nom.startswith(".") or nom == "temp" or not os.path.isdir(haut):
             continue
         trouves.append(nom)
         try:

@@ -31,6 +31,7 @@
   <span class="espace"></span>
   <button class="lien" data-terminal="">Terminaux ↗</button>
   <button class="lien" id="verifier-tout">Vérifier les mises à jour</button>
+  <button class="lien" id="ouvrir-temp">Temp</button>
   <button class="lien" id="ouvrir-claude">Claude Code</button>
   <button class="lien" id="ouvrir-reglages">Réglages</button>
   <button class="lien" id="deconnexion" hidden>Déconnexion</button>
@@ -89,6 +90,19 @@
       <button class="bouton danger" id="claude-tout">Tout redémarrer</button>
     </div>
     <div id="claude-dossiers"></div>
+  </div>
+</dialog>
+
+<dialog id="temp">
+  <div class="journal-tete">
+    <strong>Temp</strong>
+    <code id="temp-dossier"></code>
+    <span class="espace"></span>
+    <button class="lien" id="temp-fermer">Fermer ✕</button>
+  </div>
+  <div class="temp-corps">
+    <div id="temp-liste"></div>
+    <div id="temp-vue"></div>
   </div>
 </dialog>
 

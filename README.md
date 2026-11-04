@@ -128,6 +128,20 @@ appareil connecté au launcher peut lire ce que les outils affichent et répondr
 questions (voir « Compte »). Le jeton réseau de WEB·SUITE est masqué (`jeton=•••`).
 Pour un outil sans terminal : `"terminal": false` dans `config.local.json`.
 
+## Temp
+
+`~/Documents/temp` est un dépôt où une IA pose ce qu'elle veut montrer : captures d'écran,
+rapports, journaux. **Temp** (en haut de la page) liste tous les fichiers, sous-dossiers
+compris, les plus récents d'abord, et se met à jour toute seule.
+
+- Affichés dans la page : images, PDF, HTML, vidéo, son, et tout fichier texte (le premier Mo ;
+  **Ouvrir ↗** donne le fichier entier). Les autres se téléchargent.
+- Le mode ne fait que lire : rien ne se supprime depuis la page, le ménage se fait à la main.
+- **Sécurité** : réservé aux comptes du launcher. Ces fichiers ne sont pas de confiance : HTML
+  et SVG s'affichent sans script ni accès réseau, donc sans graphique en JavaScript ni image
+  externe. Fichiers cachés et liens symboliques : ni listés, ni servis. Comme toute la page, le
+  contenu passe en clair sur le Wi-Fi (HTTP) : pas de secret dans ce dossier.
+
 ## Particularités des outils
 
 **tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les
@@ -223,7 +237,7 @@ sudo systemctl restart web_launcher
 
 ```
 launcher.py              point d'entrée
-lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action>, /api/journal/<id>, /api/console/<id>)
+lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action>, /api/journal/<id>, /api/console/<id>, /api/temp)
 lanceur/gestionnaire.py  démarrage, arrêt, reprise, installation, mises à jour
 lanceur/depot.py         git (fetch, pull --ff-only, clone)
 lanceur/reseau.py        IP, ports, annonce mDNS de launcher.local
