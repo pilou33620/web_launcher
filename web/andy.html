@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andy · Web Launcher</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/icones/launcher.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/andy.css">
+</head>
+<body>
+<div class="page">
+
+  <aside class="lateral" aria-label="Fiche d'Andy">
+    <a class="retour" href="/">← Web Launcher</a>
+    <section class="bloc identite">
+      <h1>Andy</h1>
+      <p class="sous" id="age-andy"></p>
+      <dl>
+        <dt>Race</dt><dd>Cocker anglais</dd>
+        <dt>Sexe</dt><dd>Mâle</dd>
+        <dt>Naissance</dt><dd>30/11/2025</dd>
+        <dt>Robe</dt><dd>Chocolat et blanc</dd>
+        <dt>N° d'identification</dt><dd>250269611650079</dd>
+        <dt>Dossier Gazinet</dt><dd>Réf. 17598-1</dd>
+        <dt>Dernier poids</dt><dd id="dernier-poids"></dd>
+      </dl>
+    </section>
+
+    <section class="bloc">
+      <h2>En chiffres</h2>
+      <div class="chiffres" id="chiffres"></div>
+      <ul class="dernieres" id="dernieres"></ul>
+    </section>
+
+    <section class="bloc courbe">
+      <h2>Courbe de poids</h2>
+      <div id="courbe"></div>
+      <form class="pesee" id="pesee" autocomplete="off">
+        <label>Date<input name="date" type="date" required></label>
+        <label>Poids (kg)<input name="kg" type="number" step="0.01" min="0.5" max="100" inputmode="decimal" required></label>
+        <button class="bouton" type="submit">Ajouter</button>
+        <p id="pesee-msg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="bloc">
+      <h2>À venir</h2>
+      <ul class="liste-simple" id="avenir"></ul>
+    </section>
+
+    <section class="bloc contact">
+      <h2>Contacts</h2>
+      <ul class="liste-simple">
+        <li>Clinique vétérinaire Le Gazinet, Cestas<small><a href="tel:+33556072907">05 56 07 29 07</a></small></li>
+        <li>Clinique vétérinaire Route de l'Océan, Martignas-sur-Jalle<small><a href="tel:+33556770949">05 56 77 09 49</a> · lundi–vendredi 9h–12h et 14h–19h, samedi 9h–12h</small></li>
+        <li>Camille Ferrand, ostéopathe animalier<small><a href="tel:+33784205201">07 84 20 52 01</a> · <a href="mailto:camille.osteo.animale@gmail.com">camille.osteo.animale@gmail.com</a></small></li>
+      </ul>
+    </section>
+  </aside>
+
+  <main>
+    <div class="outils" role="search">
+      <div class="recherche">
+        <input id="q" type="search" placeholder="Rechercher : nexgard, oreille, 2026-10, Guillemet, lot…" aria-label="Rechercher dans l'historique d'Andy" autocomplete="off" enterkeyhint="search">
+        <button id="effacer" type="button" aria-label="Effacer la recherche" hidden>×</button>
+      </div>
+      <div class="puces" id="puces" role="group" aria-label="Filtrer par type"></div>
+      <div class="actions">
+        <span id="compte" aria-live="polite"></span>
+        <div class="groupe">
+          <button class="bouton" id="tri" type="button"></button>
+          <button class="bouton" id="deplier" type="button">Tout déplier</button>
+          <button class="bouton" id="export" type="button">Exporter JSON</button>
+          <button class="bouton" id="theme" type="button">Thème</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="frise"></div>
+
+    <p class="pied">Données issues du carnet de santé papier, des extraits de dossier de la clinique du Gazinet, des factures de la clinique Route de l'Océan et de la fiche d'ostéopathie. Les passages entre crochets sont des lectures de l'écriture manuscrite : à vérifier sur le carnet. Les pesées ajoutées sont enregistrées sur le Raspberry Pi, donc les mêmes sur tous les appareils.</p>
+  </main>
+</div>
+
+<script src="/js/andy.js"></script>
+</body>
+</html>

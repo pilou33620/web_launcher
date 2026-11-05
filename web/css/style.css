@@ -55,6 +55,7 @@ a { color: inherit; }
   font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--doux);
 }
 .lien:hover { color: var(--texte); }
+a.lien { text-decoration: none; }
 
 /* -- grille de cartes ------------------------------------------------- */
 .grille {

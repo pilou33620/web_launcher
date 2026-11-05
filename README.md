@@ -142,6 +142,19 @@ compris, les plus récents d'abord, et se met à jour toute seule.
   externe. Fichiers cachés et liens symboliques : ni listés, ni servis. Comme toute la page, le
   contenu passe en clair sur le Wi-Fi (HTTP) : pas de secret dans ce dossier.
 
+## Andy
+
+**Andy** (en haut de la page, `/andy.html`) est le suivi de santé d'Andy : frise chronologique
+(vaccins, vermifuges, consultations, ostéo…), recherche sans accent ni majuscule, filtres par
+type, courbe de poids, export JSON.
+
+- L'historique médical est dans `web/js/andy_donnees.json` (à modifier dans le dépôt).
+- Les pesées ajoutées depuis la page sont gardées sur le Pi, dans `andy.local.json` (ignoré par
+  git) : on les retrouve identiques depuis `launcher.local`, l'IP ou Tailscale.
+- **Sécurité** : réservé aux comptes du launcher (page, données et pesées). Rien de médical
+  dans `/css/` ni `/icones/`, qui sont publics.
+- Les pesées vont de la naissance d'Andy (30/11/2025) à aujourd'hui, de 0,5 à 100 kg.
+
 ## Particularités des outils
 
 **tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les

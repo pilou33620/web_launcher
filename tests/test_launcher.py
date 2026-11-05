@@ -2,6 +2,7 @@
 
     python3 -m unittest discover tests
 """
+import datetime
 import json
 import os
 import shutil
@@ -15,7 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lanceur import claude, compte, config, reseau  # noqa: E402
+from lanceur import andy, claude, compte, config, reseau  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire, OccupeErreur  # noqa: E402
 
 SERVEUR = """import http.server, sys
@@ -505,6 +506,108 @@ class Temp(unittest.TestCase):
         self.assertLess(len(corps), self.serveur.APERCU_TEMP + 100)
         self.assertIn(b"suite non affich", corps)
         self.assertEqual(len(self.fichier("gros.log")[2]), self.serveur.APERCU_TEMP + 10)
+
+
+class Andy(unittest.TestCase):
+    def setUp(self):
+        import threading
+        from lanceur import serveur
+        self.serveur = serveur
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.addCleanup(setattr, andy, "FICHIER", andy.FICHIER)     # ne pas toucher aux vraies pesées du Pi
+        andy.FICHIER = os.path.join(self.tmp, "andy.json")
+        self.addCleanup(setattr, serveur.Lanceur, "gardien", serveur.Lanceur.gardien)
+        self.addCleanup(setattr, serveur.Lanceur, "infos", serveur.Lanceur.infos)
+        self.addCleanup(setattr, serveur.Lanceur, "ce_poste", serveur.Lanceur.ce_poste)
+        serveur.Lanceur.gardien = compte.Gardien(os.path.join(self.tmp, "c.json"), os.path.join(self.tmp, "s.json"))
+        serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
+        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        self.base = "http://127.0.0.1:%d" % httpd.server_address[1]
+
+    def appeler(self, chemin, corps=None, entete=True):
+        import urllib.error
+        import urllib.request
+        if isinstance(corps, (dict, list)):
+            corps = json.dumps(corps).encode()
+        req = urllib.request.Request(self.base + chemin, data=corps, headers={"X-Launcher": "1"} if entete else {})
+
+        class SansRedirection(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a):
+                return None
+        try:
+            r = urllib.request.build_opener(SansRedirection).open(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            r = e
+        return r.status, r.read()
+
+    def test_validation(self):
+        auj = datetime.date(2026, 11, 5)
+        for date, poids in (("2025-11-29", 5), ("2026-11-07", 5), ("2026-13-01", 5), ("hier", 5), (None, 5),
+                            ("2026-11-05", 0.4), ("2026-11-05", 100.1), ("2026-11-05", True), ("2026-11-05", "13"),
+                            ("2026-11-05", None), ("2026-11-05", float("nan"))):
+            with self.assertRaises(ValueError, msg=(date, poids)):
+                andy.ajouter(date, poids, auj)
+        self.assertEqual(andy.lire(), [])
+        andy.ajouter("2025-11-30", 0.5, auj)
+        andy.ajouter("2026-11-06", 100, auj)               # un jour de marge pour le fuseau de l'appareil
+
+    def test_ajouter_lire_supprimer(self):
+        auj = datetime.date(2026, 11, 5)
+        b = andy.ajouter("2026-11-05", 14.236, auj)
+        a = andy.ajouter("2026-10-07", 13.6, auj)
+        self.assertEqual(b["poids"], 14.24)
+        self.assertEqual([p["date"] for p in andy.lire()], ["2026-10-07", "2026-11-05"])
+        self.assertFalse(andy.supprimer("inconnu"))
+        self.assertTrue(andy.supprimer(a["id"]))
+        self.assertEqual([p["id"] for p in andy.lire()], [b["id"]])
+        with open(andy.FICHIER, "w") as f:                  # fichier abîmé ou entrées bancales : ignorés, pas de plantage
+            f.write('{"pesees": [{"id": "x", "date": "2026-01-01", "poids": 5}, {"id": 1}, 7, {"id": "y", "date": "d", "poids": "p"}]}')
+        self.assertEqual([p["id"] for p in andy.lire()], ["x"])
+        with open(andy.FICHIER, "w") as f:
+            f.write("{pas du json")
+        self.assertEqual(andy.lire(), [])
+        self.assertEqual(andy.ajouter("2026-01-01", 5, auj)["poids"], 5)
+
+    def test_api(self):
+        code, corps = self.appeler("/api/andy/pesees")
+        self.assertEqual((code, json.loads(corps)), (200, {"pesees": []}))
+        self.assertEqual(self.appeler("/api/andy/pesees", {"date": "2026-01-01", "poids": 5}, entete=False)[0], 403)
+        self.assertEqual(self.appeler("/api/andy/pesees", b"pas du json")[0], 400)
+        self.assertEqual(self.appeler("/api/andy/pesees", [1, 2])[0], 400)
+        self.assertEqual(self.appeler("/api/andy/pesees", {"date": "2026-01-01", "poids": 0})[0], 400)
+        code, corps = self.appeler("/api/andy/pesees", {"date": "2026-01-01", "poids": 5.5})
+        self.assertEqual(code, 200)
+        pesee = json.loads(corps)["pesee"]
+        self.assertEqual(json.loads(self.appeler("/api/andy/pesees")[1])["pesees"], [pesee])
+        self.assertEqual(self.appeler("/api/andy/pesees/supprimer", {"id": "inconnu"})[0], 404)
+        self.assertEqual(self.appeler("/api/andy/pesees/supprimer", {"id": pesee["id"]})[0], 200)
+        self.assertEqual(json.loads(self.appeler("/api/andy/pesees")[1])["pesees"], [])
+        self.assertEqual(self.appeler("/api/andy/pesees/autre", {})[0], 404)
+
+    def test_acces_reserve_aux_comptes(self):
+        self.assertEqual(self.appeler("/andy.html")[0], 200)
+        self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 200)
+        self.serveur.Lanceur.ce_poste = lambda self: False      # appareil non connecté
+        self.assertEqual(self.appeler("/andy.html")[0], 302)
+        self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 302)    # l'historique n'est pas public
+        self.assertEqual(self.appeler("/js/andy.js")[0], 302)
+        self.assertEqual(self.appeler("/api/andy/pesees")[0], 401)
+        self.assertEqual(self.appeler("/api/andy/pesees", {"date": "2026-01-01", "poids": 5})[0], 401)
+        self.assertEqual(self.appeler("/api/andy/pesees/supprimer", {"id": "x"})[0], 401)
+
+    def test_donnees_livrees(self):
+        with open(os.path.join(self.serveur.DOSSIER_WEB, "js", "andy_donnees.json"), encoding="utf-8") as f:
+            evenements = json.load(f)
+        self.assertGreater(len(evenements), 30)
+        dates = [e["date"] for e in evenements]
+        self.assertEqual(dates, sorted(dates))
+        for e in evenements:
+            datetime.date.fromisoformat(e["date"])
+            self.assertTrue(e["titre"] and e["type"], e)
 
 
 class Claude(unittest.TestCase):

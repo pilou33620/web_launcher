@@ -14,7 +14,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
-from . import claude, compte, config, depot, reseau
+from . import andy, claude, compte, config, depot, reseau
 from .gestionnaire import OccupeErreur
 
 DOSSIER_WEB = os.path.join(config.RACINE, "web")
@@ -228,9 +228,11 @@ class Lanceur(SimpleHTTPRequestHandler):
         if url.path == "/api/temp/fichier":
             q = parse_qs(url.query)
             return self._fichier_temp(q.get("chemin", [""])[0], "apercu" in q)
+        if url.path == "/api/andy/pesees":
+            return self._json({"pesees": andy.lire()})
         if url.path.startswith("/api/"):
             return self._json({"erreur": "route inconnue"}, 404)
-        if url.path not in ("/", "/index.html", "/console.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
+        if url.path not in ("/", "/index.html", "/console.html", "/andy.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
             return self.send_error(404)
         return super().do_GET()
 
@@ -269,6 +271,8 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
+            if morceaux[:3] == ["api", "andy", "pesees"] and len(morceaux) in (3, 4):
+                return self._pesee("/".join(morceaux[3:]) or "ajouter", corps)
             if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"], ["eteindre"], ["allumer"], ["confiance"]):
                 return self._claude(morceaux[2], corps)
             if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
@@ -385,6 +389,25 @@ class Lanceur(SimpleHTTPRequestHandler):
         else:
             return self._json({"erreur": "route inconnue"}, 404)
         return self._json({"erreur": erreur}, 400) if erreur else self._json({"ok": True})
+
+    def _pesee(self, action, corps):
+        """Suivi d'Andy : ajouter ou supprimer une pesée."""
+        try:
+            d = json.loads(corps.decode("utf-8") or "{}")
+            if not isinstance(d, dict):
+                raise ValueError
+        except ValueError:
+            return self._json({"erreur": "demande illisible"}, 400)
+        if action == "ajouter":
+            try:
+                return self._json({"ok": True, "pesee": andy.ajouter(d.get("date"), d.get("poids"))})
+            except ValueError as exc:
+                return self._json({"erreur": str(exc)}, 400)
+        if action == "supprimer":
+            if not andy.supprimer(str(d.get("id", ""))[:40]):
+                return self._json({"erreur": "pesée introuvable"}, 404)
+            return self._json({"ok": True})
+        return self._json({"erreur": "route inconnue"}, 404)
 
     def _claude(self, action, corps):
         """Sessions Claude Code : ajouter/retirer un dossier, redémarrer/éteindre/allumer un dossier ou tout."""
