@@ -101,6 +101,20 @@
       "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_power",
+      "nom": "Grid",
+      "suffixe": "Master",
+      "description": "Jeu de gestion d'un réseau électrique régional",
+      "accent": "#06b6d4",
+      "icone": "eclair",
+      "depot": "https://github.com/pilou33620/web_power.git",
+      "dossiers": ["web_power"],
+      "port": 8794,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }
