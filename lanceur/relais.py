@@ -11,6 +11,10 @@ de l'extérieur. Le launcher fait donc passer leurs pages par lui, après sa con
 - WebSocket : retrouvé par le cookie `relais_outil` (la poignée de main n'envoie pas de Referer),
   puis tunnel brut dans les deux sens.
 - Le cookie de session du launcher n'est jamais transmis à l'outil, ni l'en-tête Authorization.
+- Les outils partagent l'adresse du launcher : un outil ne peut ni poser les cookies du launcher,
+  ni installer un service worker (il pourrait sinon prendre la main sur toute l'adresse).
+- Envoi (POST, PUT...) et WebSocket : l'Origin doit être l'adresse du launcher (un autre site,
+  ou un outil ouvert sur son propre port, ne passe pas par le relais avec la session).
 """
 
 import http.client
@@ -30,9 +34,13 @@ ATTENTE_TUNNEL = 600
 # En-têtes qui ne se transmettent pas tels quels (propres à la connexion, ou réécrits ici).
 SAUF_REQUETE = {"host", "connection", "keep-alive", "proxy-authorization", "proxy-connection", "te", "trailer",
                 "transfer-encoding", "upgrade", "content-length", "accept-encoding", "authorization",
-                "cookie", "origin", "referer", "expect"}
+                "cookie", "origin", "referer", "expect", "tailscale-user-login", "tailscale-user-name",
+                "tailscale-user-profile-pic", "tailscale-funnel-request", "tailscale-headers-info"}
 SAUF_REPONSE = {"connection", "keep-alive", "proxy-authenticate", "proxy-connection", "te", "trailer",
-                "transfer-encoding", "upgrade", "content-length", "content-encoding", "referrer-policy"}
+                "transfer-encoding", "upgrade", "content-length", "content-encoding", "referrer-policy",
+                "service-worker-allowed", "clear-site-data", "strict-transport-security"}
+COOKIES_LAUNCHER = ("launcher_session", COOKIE_OUTIL)
+SANS_EFFET = ("GET", "HEAD", "OPTIONS")
 
 LIENS_HTML = re.compile(rb"""(\b(?:href|src|action|formaction|poster)\s*=\s*)(["'])/(?!/)""", re.I)
 
@@ -48,10 +56,14 @@ def _cookies(h):
         return SimpleCookie()
 
 
+def _hote(h):
+    return h.hote_public() if hasattr(h, "hote_public") else (h.headers.get("Host") or "").strip().lower()
+
+
 def _id_du_referer(h):
     """L'outil d'où part la requête, d'après le Referer (même site seulement), ou None."""
     ref = urlparse(h.headers.get("Referer") or "")
-    if not ref.netloc or ref.netloc.lower() != (h.headers.get("Host") or "").strip().lower():
+    if not ref.netloc or ref.netloc.lower() != _hote(h):
         return None
     m = DANS_PREFIXE.match(ref.path)
     return m.group(1) if m else None
@@ -117,16 +129,32 @@ def _location(valeur, id_, hote):
 
 
 def _biscuit(valeur):
-    """Set-Cookie de l'outil : sans Domain (il serait celui du Pi, pas du site visité)."""
+    """Set-Cookie de l'outil : sans Domain (il serait celui du Pi, pas du site visité).
+    None : cookie du launcher, refusé."""
+    nom = valeur.split("=", 1)[0].strip().lower()
+    if nom in COOKIES_LAUNCHER or nom.startswith(("__host-", "__secure-")) and nom.split("-", 1)[1] in COOKIES_LAUNCHER:
+        return None
     return re.sub(r";\s*Domain=[^;]*", "", valeur, flags=re.I)
+
+
+def origine_permise(h):
+    """Requête qui agit (envoi, WebSocket) : l'Origin, si le navigateur l'envoie, doit être le launcher."""
+    origine = h.headers.get("Origin")
+    if origine is None:
+        return True                                     # pas un envoi depuis une page web
+    return urlparse(origine).netloc.lower() == _hote(h) and origine != "null"
 
 
 def relayer(h, port, id_, chemin):
     """Transmet la requête de h à l'outil et renvoie sa réponse. Jamais d'exception vers l'appelant."""
     hote = "127.0.0.1:%d" % port
     chemin = _chemin_outil(chemin)
-    h.relais = True
     tunnel = (h.headers.get("Upgrade") or "").lower() == "websocket"
+    if (tunnel or h.command not in SANS_EFFET) and not origine_permise(h):
+        return h._texte("Requête refusée (autre site).", 403)
+    if (h.headers.get("Service-Worker") or "").lower() == "script":
+        return h._texte("Service worker refusé à travers le launcher.", 403)
+    h.relais = True
     try:
         if tunnel:
             return _tunnel(h, port, hote, chemin)
@@ -192,11 +220,14 @@ def _requete(h, port, hote, id_, chemin):
                 v = _location(v, id_, hote)
             elif bas == "set-cookie":
                 v = _biscuit(v)
+                if v is None:
+                    continue
             h.send_header(k, v)
         if taille is not None:
             h.send_header("Content-Length", taille)
         h.send_header("Referrer-Policy", "same-origin")
-        h.send_header("Set-Cookie", "%s=%s; Path=/; HttpOnly; SameSite=Strict" % (COOKIE_OUTIL, id_))
+        options = h.options_cookie() if hasattr(h, "options_cookie") else "; Path=/; HttpOnly; SameSite=Strict"
+        h.send_header("Set-Cookie", "%s=%s%s" % (COOKIE_OUTIL, id_, options))
         h.end_headers()
         if methode == "HEAD" or rep.status in (204, 304):
             return

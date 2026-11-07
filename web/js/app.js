@@ -58,9 +58,12 @@ function hoteOutils() {
   return (etat && (etat.launcher.ici || etat.launcher.ip)) || h;   // un nom (pilou.local, MagicDNS) : l'IP jointe
 }
 // Page ouverte en https (Tailscale Funnel, depuis Internet) : les ports des outils ne sont pas joignables,
-// l'outil passe par le launcher, à /o/<id>/ (même adresse, même connexion).
+// l'outil passe par le relais du launcher, sur le port 8443 : une autre origine que le launcher,
+// pour qu'une page d'outil ne puisse pas appeler l'API du launcher.
 const parRelais = () => location.protocol === "https:";
-const urlOutil = (o) => parRelais() ? `${location.origin}/o/${o.id}/` : `http://${hoteOutils()}:${o.port}/`;
+const urlOutil = (o) => parRelais()
+  ? `https://${location.hostname}:${(etat && etat.launcher.port_public_relais) || 8443}/o/${o.id}/`
+  : `http://${hoteOutils()}:${o.port}/`;
 
 function dateCourte(iso) {
   if (!iso) return "";

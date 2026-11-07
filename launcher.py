@@ -20,6 +20,11 @@ from lanceur.gestionnaire import Gestionnaire  # noqa: E402
 
 
 def main():
+    # scrypt (32 Mo) dans des threads différents : sans cette limite, la glibc garde un tas par
+    # thread et la mémoire ne redescend jamais. Lue au démarrage du processus : on se relance.
+    if os.environ.get("MALLOC_ARENA_MAX") != "2":
+        os.environ["MALLOC_ARENA_MAX"] = "2"
+        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)] + sys.argv[1:])
     ap = argparse.ArgumentParser(description="Web Launcher : les web tools du Raspberry Pi.")
     ap.add_argument("--port", type=int, help="port d'écoute (défaut : outils.json, 80)")
     ap.add_argument("--dossier", help="dossier des web tools (défaut : ~/Documents)")
@@ -56,9 +61,14 @@ def main():
     serveur.Lanceur.alias = alias
     serveur.Lanceur.relancer = staticmethod(lambda: (alias.arreter(), serveur.relancer_processus()))
     serveur.Lanceur.infos = {"port": port, "nom_mdns": conf.get("nom_mdns"),
+                             "port_public_relais": conf.get("port_public_relais", 8443),
                              "nom_machine": reseau.nom_machine(),
                              "dossier_outils": conf["dossier_outils"], "demarre": int(time.time())}
     threading.Thread(target=gestionnaire.surveiller, daemon=True).start()
+    # les outils depuis Internet : adresse à part (Caddy -> 127.0.0.1:port_relais), voir README
+    relais = serveur.ouvrir_relais(int(conf.get("port_relais", 18089)), ecrire=lambda t: print(t, flush=True))
+    if relais:
+        threading.Thread(target=relais.serve_forever, daemon=True).start()
 
     suffixe = "" if port == 80 else ":%d" % port
     print("  Ouvrir dans un navigateur :", flush=True)
@@ -78,6 +88,8 @@ def main():
     finally:
         alias.arreter()
         httpd.server_close()
+        if relais:
+            relais.server_close()
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@
   "dossier_outils": "~/Documents",
   "port": 80,
   "port_secours": 8090,
+  "port_relais": 18089,
+  "port_public_relais": 8443,
   "nom_mdns": "launcher",
   "verification_maj_heures": 1,
 

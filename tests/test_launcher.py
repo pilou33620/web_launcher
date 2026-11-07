@@ -231,6 +231,8 @@ class FauxOutil(unittest.TestCase):
 
 class Compte(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(setattr, compte, "PAUSE_ECHEC", compte.PAUSE_ECHEC)
+        compte.PAUSE_ECHEC = 0
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
         self.fichier, self.sessions = os.path.join(tmp, "compte.json"), os.path.join(tmp, "sessions.json")
@@ -303,6 +305,55 @@ class Compte(unittest.TestCase):
         self.assertIsNone(g.ajouter("marie", "mot de passe marie"))
         self.assertEqual([c["login"] for c in g.comptes()], ["pilou", "marie"])
 
+    def test_force_brute_adresse_recidive(self):
+        for _ in range(compte.ESSAIS):
+            self.g.verifier("pilou", "faux", "10.0.0.2")
+        erreur = self.g.verifier("pilou", "correct horse", "10.0.0.2")[1]
+        self.assertTrue(erreur.startswith("Trop d'essais : réessayez dans 5 min"), erreur)
+        e = self.g.echecs["10.0.0.2"]
+        e["jusqu"] = 0                                  # le blocage est passé
+        self.g.echecs_comptes.clear()                   # (testé à part : blocage de l'identifiant)
+        for _ in range(compte.ESSAIS):
+            self.g.verifier("pilou", "faux", "10.0.0.2")
+        self.assertIn("10 min", self.g.verifier("pilou", "correct horse", "10.0.0.2")[1])   # récidive : doublé
+        e["jusqu"], e["blocages"] = 0, 20
+        self.g.echecs_comptes.clear()
+        for _ in range(compte.ESSAIS):
+            self.g.verifier("pilou", "faux", "10.0.0.2")
+        self.assertIn("24 h", self.g.verifier("pilou", "correct horse", "10.0.0.2")[1])     # plafond
+        e["jusqu"] = 0
+        self.g.echecs_comptes.clear()
+        self.assertIsNotNone(self.g.verifier("pilou", "correct horse", "10.0.0.2")[0])
+        self.assertNotIn("10.0.0.2", self.g.echecs)    # réussite : effacé
+
+    def test_force_brute_identifiant_et_total(self):
+        # 10 erreurs sur « pilou » depuis 10 adresses différentes : l'identifiant est bloqué
+        for i in range(compte.ESSAIS_COMPTE):
+            self.g.verifier("Pilou ", "faux", "10.1.0.%d" % i)
+        erreur = self.g.verifier("pilou", "correct horse", "10.2.0.1")[1]
+        self.assertTrue(erreur and erreur.startswith("Trop d'essais"), erreur)
+        self.assertIsNone(self.g.verifier("marie", "x", "10.2.0.2")[0])    # un autre identifiant : essayé normalement
+        # une adresse déjà connectée avec succès passe malgré le blocage de l'identifiant
+        self.g.connues["10.9.9.9"] = time.time()
+        self.assertIsNotNone(self.g.verifier("pilou", "correct horse", "10.9.9.9")[0])
+        # attaque répartie sur beaucoup d'adresses et d'identifiants : tout est bloqué
+        self.g.echecs_comptes.clear()
+        for i in range(compte.ESSAIS_TOTAL):
+            self.g.verifier("nom%d" % i, "faux", "10.3.%d.1" % i)
+        erreur = self.g.verifier("pilou", "correct horse", "10.4.0.1")[1]
+        self.assertTrue(erreur and erreur.startswith("Trop d'essais"), erreur)
+
+    def test_force_brute_memoire_bornee(self):
+        self.addCleanup(setattr, compte, "SUIVIS_MAX", compte.SUIVIS_MAX)
+        compte.SUIVIS_MAX = 3
+        self.g.total_jusqu = 0
+        for i in range(6):
+            self.g.echecs_total = []
+            self.g.verifier("n%d" % i, "faux", "10.5.0.%d" % i)
+        self.g._purger(time.time())
+        self.assertLessEqual(len(self.g.echecs), 3)
+        self.assertLessEqual(len(self.g.echecs_comptes), 3)
+
     def test_serveur_protege(self):
         import threading
         import urllib.error
@@ -351,6 +402,12 @@ class Compte(unittest.TestCase):
         # sans compte : ce poste entre, un autre appareil est refusé
         serveur.Lanceur.gardien = compte.Gardien(self.fichier + ".absent", self.sessions)
         self.assertEqual(statut("/api/etat")[0], 200)
+        # ... sauf par Caddy / Funnel : la requête vient aussi de 127.0.0.1, mais d'Internet
+        for entete in serveur.ENTETES_PROXY:
+            req = urllib.request.Request(base + "/api/etat", headers={entete: "1.2.3.4"})
+            with self.assertRaises(urllib.error.HTTPError, msg=entete) as e:
+                ouvrir(req, timeout=10)
+            self.assertEqual(e.exception.code, 401, entete)
         self.addCleanup(setattr, serveur.Lanceur, "ce_poste", serveur.Lanceur.ce_poste)
         serveur.Lanceur.ce_poste = lambda self: False
         self.assertEqual(statut("/api/etat")[0], 401)
@@ -658,6 +715,10 @@ class Relais(unittest.TestCase):
                     return self.repondre("page:" + self.headers["Host"])
                 if self.path == "/redir":
                     return self.repondre("", statut=302, entetes=[("Location", "http://%s/page" % self.headers["Host"])])
+                if self.path == "/mauvais_cookie":
+                    return self.repondre("ok", entetes=[("Set-Cookie", "launcher_session=pirate; Path=/"),
+                                                        ("Set-Cookie", "__Host-launcher_session=x; Path=/; Secure"),
+                                                        ("Service-Worker-Allowed", "/"), ("Clear-Site-Data", '"*"')])
                 if self.path == "/cookie":
                     return self.repondre("ok", entetes=[("Set-Cookie", "a=1; Domain=exemple.fr; Path=/")])
                 if self.path == "/flux":                   # sans Content-Length : fermé à la fin
@@ -690,12 +751,21 @@ class Relais(unittest.TestCase):
         serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
         serveur.Lanceur.gestionnaire = types.SimpleNamespace(par_id={
             "faux": types.SimpleNamespace(port=self.port_outil), "mort": types.SimpleNamespace(port=morts)})
-        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Relais)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
         self.port = httpd.server_address[1]
+        principal = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        threading.Thread(target=principal.serve_forever, daemon=True).start()
+        self.addCleanup(principal.server_close)
+        self.addCleanup(principal.shutdown)
+        self.port_launcher = principal.server_address[1]
         self.hote = "127.0.0.1:%d" % self.port
+
+    PUBLIC = "pi.tail1234.ts.net"
+    CADDY = {"X-Forwarded-For": "203.0.113.7, 127.0.0.1", "X-Forwarded-Host": PUBLIC, "X-Forwarded-Proto": "https",
+             "Tailscale-Funnel-Request": "?1"}
 
     def demander(self, methode, chemin, corps=None, connecte=True, **entetes):
         import http.client
@@ -756,8 +826,9 @@ class Relais(unittest.TestCase):
     def test_envoi_nettoye(self):
         gros = bytes(range(256)) * 1000                          # 256 000 octets
         code, _, corps = self.demander(
-            "POST", "/o/faux/echo", gros, Origin="https://pi.tail1234.ts.net", Authorization="Basic eHg6eHg=",
-            Referer="http://%s/o/faux/dossier/page?x=1" % self.hote, Cookie="launcher_session=%s; theme=sombre" % self.jeton)
+            "POST", "/o/faux/echo", gros, Origin="https://" + self.PUBLIC, Authorization="Basic eHg6eHg=",
+            Referer="https://%s/o/faux/dossier/page?x=1" % self.PUBLIC, Cookie="launcher_session=%s; theme=sombre" % self.jeton,
+            **{k.replace("-", "_"): v for k, v in self.CADDY.items()})
         vu = json.loads(corps)
         self.assertEqual(code, 200)
         self.assertEqual((vu["taille"], vu["somme"]), (len(gros), sum(gros) % 65536))
@@ -767,24 +838,86 @@ class Relais(unittest.TestCase):
         self.assertEqual(vu["Cookie"], "theme=sombre")           # ni session du launcher, ni rien d'autre
         self.assertIsNone(vu["Authorization"])
 
+    def test_origine_etrangere_refusee(self):
+        caddy = {k.replace("-", "_"): v for k, v in self.CADDY.items()}
+        for origine in ("https://evil.example", "http://127.0.0.1:8080", "null"):
+            self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin=origine, **caddy)[0], 403, origine)
+        self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin="http://" + self.hote)[0], 200)  # réseau local
+        self.assertEqual(self.demander("GET", "/o/faux/page", Origin="https://evil.example")[0], 200)       # lecture : la session Strict suffit
+
+    def test_outil_ne_touche_pas_au_launcher(self):
+        self.assertEqual(self.demander("GET", "/o/faux/sw.js", Service_Worker="script")[0], 403)
+        code, r, _ = self.demander("GET", "/o/faux/mauvais_cookie")
+        noms = [c.split("=")[0] for c in r.headers.get_all("Set-Cookie")]
+        self.assertEqual(noms, ["relais_outil"])                 # launcher_session et __Host- refusés
+        self.assertIsNone(r.getheader("Service-Worker-Allowed"))
+        self.assertIsNone(r.getheader("Clear-Site-Data"))
+
+    def test_derriere_caddy(self):
+        caddy = {k.replace("-", "_"): v for k, v in self.CADDY.items()}
+        # Caddy remplace Host par localhost : le Referer est comparé au nom public (X-Forwarded-Host)
+        ref = "https://%s/o/faux/" % self.PUBLIC
+        self.assertEqual(self.demander("GET", "/page", Referer=ref, Host="localhost", **caddy)[0], 200)
+        self.assertEqual(self.demander("GET", "/page", Referer="https://evil.example/o/faux/", Host="localhost", **caddy)[0], 404)
+        # cookies marqués Secure en https
+        r = self.demander("GET", "/o/faux/", Host="localhost", **caddy)[1]
+        self.assertIn("Secure", r.getheader("Set-Cookie"))
+        self.assertNotIn("Secure", self.demander("GET", "/o/faux/")[1].getheader("Set-Cookie"))
+
+    def test_ip_du_visiteur(self):
+        import types
+        L = self.serveur.Lanceur
+        cas = [("192.168.1.5", {}, "192.168.1.5"),
+               ("127.0.0.1", {}, "127.0.0.1"),
+               ("127.0.0.1", {"X-Forwarded-For": "203.0.113.7, 127.0.0.1"}, "203.0.113.7"),
+               ("127.0.0.1", {"X-Forwarded-For": "6.6.6.6, 203.0.113.7"}, "203.0.113.7"),   # la plus à droite
+               ("127.0.0.1", {"X-Forwarded-For": "127.0.0.1"}, "internet"),
+               ("127.0.0.1", {"Tailscale-Funnel-Request": "?1"}, "internet"),
+               ("192.168.1.5", {"X-Forwarded-For": "6.6.6.6"}, "192.168.1.5")]           # pas par Caddy : ignoré
+        for pair, entetes, attendu in cas:
+            h = types.SimpleNamespace(client_address=(pair, 1), headers=entetes)
+            h._pair_local = lambda h=h: L._pair_local(h)
+            h._par_proxy = lambda h=h: L._par_proxy(h)
+            self.assertEqual(L.ip_client(h), attendu, (pair, entetes))
+
     def test_flux_sans_longueur(self):
         code, r, corps = self.demander("GET", "/o/faux/flux")
         self.assertEqual((code, corps), (200, b"data: 1\n\ndata: 2\n\n"))
         self.assertEqual(r.getheader("Content-Type"), "text/event-stream")
 
-    def test_launcher_inchange(self):
-        # ni /o/ ni Referer : les routes du launcher répondent comme avant
-        self.assertEqual(self.demander("GET", "/api/inconnue")[2], b'{"erreur": "route inconnue"}')
-        self.assertEqual(self.demander("GET", "/connexion.html", connecte=False)[0], 200)
-        self.assertEqual(self.demander("PUT", "/api/x")[0], 405)
-        self.assertEqual(self.demander("POST", "/api/outils/faux/demarrer", b"{}")[0], 403)   # X-Launcher exigé
+    def test_origines_separees(self):
+        """Le relais ne sert que les outils ; le launcher ne relaie jamais (autre origine)."""
+        self.assertEqual(self.demander("GET", "/api/etat")[0], 404)
+        self.assertEqual(self.demander("POST", "/api/comptes/ajouter", b"{}", X_Launcher="1")[0], 404)
+        self.assertEqual(self.demander("GET", "/index.html")[0], 404)
+        port = self.port
+        try:
+            self.port = self.port_launcher
+            self.assertEqual(self.demander("GET", "/o/faux/page", Accept="text/html")[0], 404)
+            self.assertEqual(self.demander("GET", "/page", Referer="http://%s/o/faux/" % self.hote)[0], 404)
+            self.assertEqual(self.demander("PUT", "/api/x")[0], 405)
+            # « /css/../ » ne contourne pas la connexion
+            for chemin in ("/css/../js/andy_donnees.json", "/css/%2e%2e/js/andy_donnees.json", "/css/..%2findex.html",
+                           "/icones/%2e%2e/index.html", "/css//../index.html"):
+                self.assertEqual(self.demander("GET", chemin, connecte=False)[0], 404, chemin)
+            self.assertEqual(self.demander("GET", "/css/style.css", connecte=False)[0], 200)
+            self.assertEqual(self.demander("GET", "/icones/manifest.json", connecte=False)[0], 200)
+        finally:
+            self.port = port
+
+    def test_relais_vers_la_connexion(self):
+        caddy = {k.replace("-", "_"): v for k, v in self.CADDY.items()}
+        caddy["X_Forwarded_Host"] = self.PUBLIC + ":8443"
+        code, r, _ = self.demander("GET", "/o/faux/", connecte=False, Accept="text/html", Host="localhost", **caddy)
+        self.assertEqual((code, r.getheader("Location")), (302, "https://%s/connexion.html" % self.PUBLIC))
 
     def websocket(self, chemin, **entetes):
         import socket as _s
         s = _s.create_connection(("127.0.0.1", self.port), timeout=10)
         self.addCleanup(s.close)
-        h = {"Host": self.hote, "Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Key": "abc",
-             "Sec-WebSocket-Version": "13", "Origin": "https://pi.tail1234.ts.net"}
+        h = {"Host": "localhost", "Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Key": "abc",
+             "Sec-WebSocket-Version": "13", "Origin": "https://" + self.PUBLIC}
+        h.update(self.CADDY)
         h.update(entetes)
         s.sendall(("GET %s HTTP/1.1\r\n%s\r\n\r\n" % (chemin, "\r\n".join("%s: %s" % kv for kv in h.items()))).encode())
         return s
@@ -814,6 +947,10 @@ class Relais(unittest.TestCase):
     def test_websocket_connexion_exigee(self):
         s = self.websocket("/o/faux/ws")
         self.assertIn(b"401", self.lire(s, b"\r\n").split(b"\r\n")[0])
+
+    def test_websocket_autre_site(self):
+        s = self.websocket("/o/faux/ws", Cookie="launcher_session=%s" % self.jeton, Origin="https://evil.example")
+        self.assertIn(b"403", self.lire(s, b"\r\n").split(b"\r\n")[0])
 
 
 class Claude(unittest.TestCase):

@@ -6,7 +6,13 @@
 - Sessions : jeton aléatoire de 256 bits dans un cookie HttpOnly, SameSite=Strict. Le
   serveur n'en garde que l'empreinte SHA-256 (sessions.local.json) : le fichier ne
   permet pas de se connecter. Valables 30 jours, gardées aux redémarrages du launcher.
-- Essais : 5 erreurs depuis une même adresse bloquent cette adresse 5 minutes.
+- Essais (force brute) : 5 erreurs depuis une même adresse la bloquent 5 min, puis 10, 20...
+  jusqu'à 24 h en cas de récidive ; 10 erreurs sur un même identifiant (toutes adresses)
+  le bloquent 15 min à 1 h ; plus de 30 erreurs en 15 min, toutes adresses confondues,
+  bloquent toute connexion 15 min. Chaque erreur coûte en plus 1 s. Une connexion réussie
+  efface les erreurs de son adresse et de son identifiant. Une adresse qui s'est déjà connectée
+  avec succès échappe aux blocages « identifiant » et « total » (un attaquant ne peut pas
+  empêcher le vrai propriétaire d'entrer) ; seul son propre compteur d'adresse s'applique.
 
 - Comptes : ajoutés, supprimés, mot de passe changé depuis la page (Réglages), ou en console.
 
@@ -28,8 +34,13 @@ from . import config
 FICHIER = os.path.join(config.RACINE, "compte.local.json")
 SESSIONS = os.path.join(config.RACINE, "sessions.local.json")
 DUREE_SESSION = 30 * 24 * 3600
-ESSAIS, BLOCAGE = 5, 300
-LONGUEUR_MIN = 8
+ESSAIS, BLOCAGE, BLOCAGE_MAX = 5, 300, 24 * 3600                   # par adresse
+ESSAIS_COMPTE, BLOCAGE_COMPTE, BLOCAGE_COMPTE_MAX = 10, 900, 3600    # par identifiant
+ESSAIS_TOTAL, FENETRE_TOTAL, BLOCAGE_TOTAL = 30, 900, 900            # toutes adresses
+OUBLI = 24 * 3600            # sans erreur pendant 24 h : compteurs remis à zéro
+PAUSE_ECHEC = 1.0            # chaque erreur coûte 1 s de plus
+SUIVIS_MAX = 5000            # adresses / identifiants suivis au plus (mémoire bornée)
+LONGUEUR_MIN = 12
 SCRYPT = {"n": 2 ** 15, "r": 8, "p": 1}
 PBKDF2_TOURS = 600000
 
@@ -91,6 +102,30 @@ def verifier_mdp(mdp):
     return None
 
 
+def _attente(e, maintenant):
+    return e["jusqu"] - maintenant if e else 0
+
+
+def _compter(table, cle, seuil, base, plafond, maintenant):
+    """Une erreur de plus pour cette clé. Au seuil : blocage, doublé à chaque récidive."""
+    e = table.get(cle)
+    if e is None or maintenant - e["vu"] > OUBLI:
+        e = {"n": 0, "blocages": 0, "jusqu": 0, "vu": maintenant}
+    e["n"] += 1
+    e["vu"] = maintenant
+    if e["n"] >= seuil:
+        e["jusqu"] = maintenant + min(base * 2 ** e["blocages"], plafond)
+        e["blocages"] += 1
+        e["n"] = 0
+    table[cle] = e
+    return e
+
+
+def _duree(secondes):
+    minutes = int(secondes // 60) + 1
+    return "%d min" % minutes if minutes < 120 else "%d h" % (minutes // 60 + (minutes % 60 > 0))
+
+
 class Gardien:
     """Vérifie les identifiants, tient les comptes et les sessions ouvertes.
     Tous les comptes ont les mêmes droits."""
@@ -100,7 +135,11 @@ class Gardien:
         self.fichier_sessions = sessions
         self.verrou = threading.Lock()
         self.calculs = threading.Semaphore(2)   # scrypt prend 32 Mo : pas plus de 2 à la fois
-        self.echecs = {}                    # ip -> [nombre, bloqué jusqu'à]
+        self.echecs = {}                    # ip -> {n, blocages, jusqu, vu}
+        self.echecs_comptes = {}            # identifiant (minuscules) -> idem
+        self.echecs_total = []              # heures des dernières erreurs, toutes adresses
+        self.total_jusqu = 0
+        self.connues = {}                   # ip -> dernière connexion réussie
         self._date_fichier = None
         self.sessions = self._lire_sessions()
 
@@ -116,30 +155,60 @@ class Gardien:
         if not comptes:
             return None, "Aucun compte : le créer sur le Raspberry Pi (python3 launcher.py --compte)."
         # l'essai est compté avant le calcul : des requêtes simultanées ne passent pas toutes
+        cle = str(login).strip().lower()[:40]
         with self.verrou:
-            nombre, jusqu = self.echecs.get(ip, [0, 0])
-            if time.time() < jusqu:
-                return None, "Trop d'essais : réessayez dans %d min." % ((jusqu - time.time()) // 60 + 1)
-            nombre += 1
-            self.echecs[ip] = [0, time.time() + BLOCAGE] if nombre >= ESSAIS else [nombre, 0]
+            maintenant = time.time()
+            self._purger(maintenant)
+            connue = ip != "internet" and maintenant - self.connues.get(ip, -OUBLI * 30) < OUBLI * 30
+            attente = _attente(self.echecs.get(ip), maintenant)
+            if not connue:
+                attente = max(attente, _attente(self.echecs_comptes.get(cle), maintenant),
+                              self.total_jusqu - maintenant)
+            if attente > 0:
+                return None, "Trop d'essais : réessayez dans %s." % _duree(attente)
+            e_ip = _compter(self.echecs, ip, ESSAIS, BLOCAGE, BLOCAGE_MAX, maintenant)
+            _compter(self.echecs_comptes, cle, ESSAIS_COMPTE, BLOCAGE_COMPTE, BLOCAGE_COMPTE_MAX, maintenant)
+            self.echecs_total.append(maintenant)
+            if len(self.echecs_total) >= ESSAIS_TOTAL:
+                self.total_jusqu = maintenant + BLOCAGE_TOTAL
+                self.echecs_total = []
         # identifiant inconnu : le calcul est fait quand même (même durée, rien n'est révélé)
         compte = _trouver(comptes, login)
         modele = compte or comptes[0]
         with self.calculs:
             essai = hacher(str(mot_de_passe), base64.b64decode(modele["sel"]), modele["algo"], modele["params"])
         bon = compte is not None and hmac.compare_digest(essai["empreinte"], compte["empreinte"])
+        if not bon:
+            time.sleep(PAUSE_ECHEC)
+            with self.verrou:
+                if e_ip["jusqu"] > time.time():
+                    return None, "Identifiant ou mot de passe incorrect : adresse bloquée %s." % _duree(
+                        e_ip["jusqu"] - time.time())
+                reste = ESSAIS - e_ip["n"]
+                return None, "Identifiant ou mot de passe incorrect (%d essai(s) restant(s))." % reste
         with self.verrou:
-            if not bon:
-                reste = ESSAIS - nombre
-                return None, ("Identifiant ou mot de passe incorrect"
-                              + (" (%d essai(s) restant(s))." % reste if 0 < reste < ESSAIS else
-                                 " : adresse bloquée 5 min." if reste <= 0 else "."))
             self.echecs.pop(ip, None)
+            self.echecs_comptes.pop(cle, None)
+            if ip != "internet":
+                self.connues[ip] = time.time()
+                if len(self.connues) > SUIVIS_MAX:
+                    del self.connues[min(self.connues, key=self.connues.get)]
+            if self.echecs_total:
+                self.echecs_total.pop()
             jeton = secrets.token_urlsafe(32)
             self._relire()
             self.sessions[self._empreinte(jeton)] = {"fin": time.time() + DUREE_SESSION, "login": compte["login"]}
             self._sauver_sessions()
         return jeton, None
+
+    def _purger(self, maintenant):
+        self.echecs_total = [t for t in self.echecs_total if maintenant - t < FENETRE_TOTAL]
+        for table in (self.echecs, self.echecs_comptes):
+            for k in [k for k, e in table.items() if e["jusqu"] < maintenant and maintenant - e["vu"] > OUBLI]:
+                del table[k]
+            if len(table) > SUIVIS_MAX:             # attaque depuis de très nombreuses adresses
+                for k in sorted(table, key=lambda k: table[k]["vu"])[:len(table) - SUIVIS_MAX]:
+                    del table[k]
 
     # -- comptes (depuis la page) ----------------------------------------
 

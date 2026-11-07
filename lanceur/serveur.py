@@ -3,6 +3,7 @@
 import ipaddress
 import json
 import os
+import posixpath
 import re
 import shutil
 import stat
@@ -12,7 +13,7 @@ import threading
 import time
 from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import andy, claude, compte, config, depot, relais, reseau
 from .gestionnaire import OccupeErreur
@@ -21,6 +22,9 @@ DOSSIER_WEB = os.path.join(config.RACINE, "web")
 COOKIE = "launcher_session"
 # Ouvert sans connexion : la page de connexion et ce qu'elle charge.
 PUBLIC = {"/connexion.html", "/js/connexion.js"}
+# Posés par Caddy ou Tailscale Funnel : une requête qui les porte vient d'Internet, pas de ce poste.
+ENTETES_PROXY = ("X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "Forwarded", "X-Real-IP",
+                 "Tailscale-Funnel-Request")
 
 
 class Visites:
@@ -66,6 +70,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     timeout = 30                    # une connexion muette ne garde pas un thread pour toujours
     cadre = "DENY"                  # X-Frame-Options de la réponse (aperçus de temp/ : SAMEORIGIN)
     relais = False                  # réponse d'un outil relayé : ses en-têtes restent les siens
+    mode_relais = False             # True : serveur des outils (classe Relais)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -109,12 +114,49 @@ class Lanceur(SimpleHTTPRequestHandler):
             return None
         return biscuit[COOKIE].value if COOKIE in biscuit else None
 
-    def ce_poste(self):
+    def _pair_local(self):
+        """La connexion TCP vient de la machine elle-même (le Pi, ou Caddy devant le launcher)."""
         try:
             ip = ipaddress.ip_address(self.client_address[0].split("%")[0])
         except (ValueError, IndexError, TypeError):
             return False
         return (getattr(ip, "ipv4_mapped", None) or ip).is_loopback
+
+    def _par_proxy(self):
+        return self._pair_local() and any(self.headers.get(k) for k in ENTETES_PROXY)
+
+    def ce_poste(self):
+        """Quelqu'un assis devant le Pi : connexion locale SANS passer par Caddy/Funnel
+        (derrière eux, toutes les requêtes d'Internet arrivent aussi de 127.0.0.1)."""
+        return self._pair_local() and not self._par_proxy()
+
+    def ip_client(self):
+        """L'adresse du visiteur. Derrière Caddy/Funnel : la dernière adresse non locale de
+        X-Forwarded-For (posée par Funnel, qui efface celle envoyée par le visiteur)."""
+        pair = self.client_address[0]
+        if not self._par_proxy():
+            return pair
+        for morceau in reversed((self.headers.get("X-Forwarded-For") or "").split(",")):
+            try:
+                a = ipaddress.ip_address(morceau.strip().split("%")[0])
+            except ValueError:
+                continue
+            a = getattr(a, "ipv4_mapped", None) or a
+            if not a.is_loopback:
+                return str(a)
+        return "internet"           # adresse inconnue : tous les visiteurs d'Internet comptent ensemble
+
+    def https(self):
+        return self._par_proxy() and (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https"
+
+    def hote_public(self):
+        """Le nom tapé par le visiteur (Caddy remplace Host par « localhost »)."""
+        if self._par_proxy() and self.headers.get("X-Forwarded-Host"):
+            return self.headers["X-Forwarded-Host"].split(",")[0].strip().lower()
+        return (self.headers.get("Host") or "").strip().lower()
+
+    def options_cookie(self):
+        return "; Path=/; HttpOnly; SameSite=Strict" + ("; Secure" if self.https() else "")
 
     def connecte(self):
         """Sans compte créé, seul ce poste entre (la page le signale en rouge) : un autre
@@ -122,7 +164,7 @@ class Lanceur(SimpleHTTPRequestHandler):
         self.login = self.gardien.utilisateur(self._jeton_session())
         if self.login is None and (self.gardien.actif or not self.ce_poste()):
             return False
-        self.visites.noter(self.client_address[0], self.login)
+        self.visites.noter(self.ip_client(), self.login)
         return True
 
     def _rediriger(self, cible):
@@ -138,6 +180,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", self.cadre)
         self.send_header("Referrer-Policy", "no-referrer")
+        if self.https():
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         super().end_headers()
 
     # -- réponses -------------------------------------------------------
@@ -190,14 +234,20 @@ class Lanceur(SimpleHTTPRequestHandler):
     # -- routes ---------------------------------------------------------
 
     def _vers_outil(self):
-        """Une requête pour un web tool (/o/<id>/...) : connexion exigée, puis relayée (relais.py)."""
+        """Le serveur des outils (Relais, adresse à part) relaie TOUT vers les outils ; le launcher,
+        jamais : un outil relayé ne partage donc pas l'origine du launcher et ne peut pas appeler
+        son API (autre origine : le navigateur bloque l'en-tête X-Launcher sans CORS)."""
+        if not self.mode_relais:
+            return False
         c = relais.cible(self)
         if c is None:
-            return False
+            self._texte("Outil introuvable : ouvrir les outils depuis le launcher.", 404)
+            return True
         id_, chemin = c
         if not self.connecte():
             if self.command in ("GET", "HEAD") and "text/html" in (self.headers.get("Accept") or ""):
-                self._rediriger("/connexion.html")
+                hote = self.hote_public().split(":")[0]
+                self._rediriger("https://%s/connexion.html" % hote if self.https() else "/connexion.html")
             else:
                 self._texte("Connexion requise.", 401)
             return True
@@ -220,6 +270,10 @@ class Lanceur(SimpleHTTPRequestHandler):
         if self._vers_outil():
             return
         url = urlparse(self.path)
+        # « /css/../index.html » : comparé à la liste publique APRÈS normalisation
+        brut = unquote(url.path)
+        if "\\" in brut or "\0" in brut or posixpath.normpath(brut) != brut.rstrip("/") and brut != "/":
+            return self.send_error(404)
         if url.path in PUBLIC or url.path.startswith(("/css/", "/icones/")):
             if url.path == "/connexion.html" and self.gardien.actif and self.connecte():
                 return self._rediriger("/")
@@ -287,7 +341,7 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._connexion(corps)
         if morceaux == ["api", "deconnexion"]:
             self.gardien.fermer(self._jeton_session())
-            return self._json({"ok": True}, cookie="%s=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict" % COOKIE)
+            return self._json({"ok": True}, cookie="%s=; Max-Age=0%s" % (COOKIE, self.options_cookie()))
         if not self.connecte():
             return self._json({"erreur": "connexion requise"}, 401)
         g = self.gestionnaire
@@ -331,7 +385,7 @@ class Lanceur(SimpleHTTPRequestHandler):
                 return self._json({"ok": True})
             if morceaux[:2] == ["api", "outils"] and len(morceaux) == 4:
                 g.lancer_action(morceaux[2], morceaux[3])
-                self.visites.dire("%s (%s)" % (self.client_address[0], self.login or "sans compte"),
+                self.visites.dire("%s (%s)" % (self.ip_client(), self.login or "sans compte"),
                                   "%s %s" % (morceaux[3], morceaux[2]))
                 return self._json({"ok": True})
             if morceaux == ["api", "verifier_tout"]:
@@ -399,13 +453,14 @@ class Lanceur(SimpleHTTPRequestHandler):
             login, mdp = str(d.get("login", ""))[:200], str(d.get("mot_de_passe", ""))[:1000]
         except (ValueError, AttributeError):
             return self._json({"erreur": "demande illisible"}, 400)
-        jeton, erreur = self.gardien.verifier(login, mdp, self.client_address[0])
+        ip = self.ip_client()
+        jeton, erreur = self.gardien.verifier(login, mdp, ip)
         # l'identifiant refusé n'est pas affiché : texte venu du réseau, pas dans le terminal
-        self.visites.dire(self.client_address[0], "échec de connexion" if erreur else "connexion de %s" % login)
+        self.visites.dire(ip, ("échec de connexion (%s)" % erreur) if erreur else "connexion de %s" % login)
         if erreur:
-            return self._json({"erreur": erreur}, 401)
-        return self._json({"ok": True}, cookie="%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Strict"
-                          % (COOKIE, jeton, compte.DUREE_SESSION))
+            return self._json({"erreur": erreur}, 429 if erreur.startswith("Trop") else 401)
+        return self._json({"ok": True}, cookie="%s=%s; Max-Age=%d%s"
+                          % (COOKIE, jeton, compte.DUREE_SESSION, self.options_cookie()))
 
     def _comptes(self, action, corps):
         """Ajouter un compte, changer un mot de passe, supprimer un compte (tous les comptes ont les mêmes droits)."""
@@ -464,7 +519,7 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": str(exc)}, 400)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
             return self._json({"erreur": str(exc)[:300]}, 500)
-        self.visites.dire("%s (%s)" % (self.client_address[0], self.login or "sans compte"),
+        self.visites.dire("%s (%s)" % (self.ip_client(), self.login or "sans compte"),
                           "claude %s %s" % (action, chemin or "tout"))
         return self._json({"ok": True})
 
@@ -484,6 +539,20 @@ class Lanceur(SimpleHTTPRequestHandler):
         g.launcher_action = "Redémarrage"
         threading.Timer(0.8, self.relancer).start()
         return self._json({"ok": True, "message": "Mis à jour, redémarrage du launcher…"})
+
+
+class Relais(Lanceur):
+    """Serveur des outils, sur une adresse à part (127.0.0.1:<port_relais>, derrière Caddy et le
+    port 8443 de Funnel) : seulement /o/<id>/, avec la session du launcher."""
+    mode_relais = True
+
+
+def ouvrir_relais(port, ecrire=print):
+    try:
+        return ThreadingHTTPServer(("127.0.0.1", port), Relais)
+    except OSError as exc:
+        ecrire("  Relais des outils : port %d indisponible (%s), outils non joignables depuis Internet." % (port, exc))
+        return None
 
 
 JETON = re.compile(r"jeton=[\w-]+")

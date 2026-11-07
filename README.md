@@ -274,24 +274,29 @@ Le launcher peut être exposé en https avec `pi_launcher_securise.sh` (dépôt 
 Tailscale Funnel + Caddy (mot de passe) devant le launcher, aucun port ouvert sur la box,
 **rien à installer sur l'appareil qui se connecte** : un navigateur suffit.
 
-Une seule adresse est alors joignable, celle du launcher. Les outils passent donc **par lui**,
-à `/o/<id>/` (exemple : `https://pi.xxx.ts.net/o/web_menu/`). Sur la page ouverte en https,
-**Ouvrir ↗** et **Copier l'adresse** prennent ce chemin tout seuls ; sur le réseau local ou en
-http, rien ne change (adresse directe `IP:port`).
+- `https://<pi>.xxx.ts.net/` : le launcher (Funnel 443 → Caddy 18080 → launcher 80).
+- `https://<pi>.xxx.ts.net:8443/o/<id>/` : les outils (Funnel 8443 → Caddy 18081 → relais du
+  launcher, `127.0.0.1:18089`). Sur la page ouverte en https, **Ouvrir ↗** et **Copier
+  l'adresse** prennent ce chemin tout seuls ; sur le réseau local, rien ne change (`IP:port`).
 
-- Connexion du launcher exigée pour chaque requête vers un outil. Son cookie de session
-  n'est jamais transmis à l'outil (ni l'en-tête `Authorization` de Caddy).
-- Pour l'outil, la requête vient de `127.0.0.1` : il faut donc que l'outil soit démarré
-  (sinon « L'outil ne répond pas »). Les liens absolus (`/api/x`, `/css/a.css`), les
-  redirections, les cookies, les envois de fichiers, les flux (SSE) et les **WebSocket**
-  sont pris en charge (`lanceur/relais.py`).
-- Limites : un outil qui écrit lui-même une adresse absolue dans son JavaScript
-  (`location.origin + "/x"`) fonctionne grâce au Referer ; un outil qui refuse tout Referer
-  ne marchera pas par ce chemin. Les outils partagent l'origine du launcher : n'y relayer
-  que des outils de confiance (les siens).
-- Conséquence de `127.0.0.1` : un outil qui ne demande rien « depuis ce poste » (ex. code
-  d'appairage de WEB·SUITE) ne le demande pas non plus par le relais. Celui qui a passé la
-  connexion du launcher a déjà la main sur ces outils.
+Pourquoi une adresse à part pour les outils : une page d'outil relayée sur la même adresse que
+le launcher pourrait appeler son API (créer un compte, piloter les terminaux...). Sur le port
+8443, c'est une autre origine : le navigateur l'en empêche. Le serveur des outils ne sert que
+`/o/<id>/`, le launcher ne relaie jamais.
+
+- La connexion du launcher est exigée sur les deux adresses (même cookie). Le mot de passe
+  Caddy est demandé une fois par adresse.
+- Le relais ne transmet à l'outil ni la session du launcher, ni l'en-tête `Authorization`, ni
+  les en-têtes `Tailscale-*`. Un outil ne peut pas poser les cookies du launcher ni installer
+  de service worker. Envois et WebSocket : refusés si la page d'origine est un autre site.
+- Pris en charge : liens absolus (`/api/x`), redirections, cookies, envois de fichiers, flux
+  (SSE), WebSocket (`lanceur/relais.py`).
+- Limites : les outils relayés partagent entre eux l'adresse 8443 (cookies et stockage du
+  navigateur communs) ; avec deux outils ouverts en même temps, un WebSocket appelé par un
+  chemin absolu peut partir vers le dernier outil ouvert. Pour l'outil, la requête vient de
+  `127.0.0.1` : ce qu'il réserve à « ce poste » (code d'appairage de WEB·SUITE) n'est pas
+  demandé par le relais.
+- Réglages (`config.local.json`) : `port_relais` (18089), `port_public_relais` (8443).
 
 ## Comptes
 
@@ -314,7 +319,15 @@ python3 launcher.py --compte     # identifiant nouveau : ajouté ; existant : no
 - Connecté, l'appareil reçoit un jeton de session aléatoire (256 bits) dans un cookie
   `HttpOnly` / `SameSite=Strict`, valable 30 jours. Le launcher n'en garde que l'empreinte
   SHA-256 (`sessions.local.json`). **Déconnexion** en haut de la page.
-- 5 erreurs depuis une même adresse la bloquent 5 minutes.
+- **Force brute** : 5 erreurs depuis une même adresse la bloquent 5 min, puis 10, 20... jusqu'à
+  24 h en cas de récidive. 10 erreurs sur un même identifiant (toutes adresses) le bloquent
+  15 min à 1 h ; plus de 30 erreurs en 15 min, toutes adresses confondues, bloquent toute
+  connexion 15 min. Chaque erreur coûte en plus 1 s. Une adresse qui s'est déjà connectée avec
+  succès échappe aux deux derniers blocages : un attaquant ne peut pas empêcher le propriétaire
+  d'entrer. Derrière Funnel, l'adresse comptée est celle du vrai visiteur (`X-Forwarded-For`).
+- Mots de passe : 12 caractères au moins.
+- Derrière Caddy/Funnel, une requête n'est jamais traitée comme venant de « ce poste », même si
+  elle arrive de 127.0.0.1 ; cookies `Secure` et en-tête HSTS en https.
 - Changer le mot de passe d'un compte déconnecte ses autres appareils ; supprimer un compte
   déconnecte tous ses appareils. Les autres comptes ne sont pas touchés.
 - Mot de passe oublié : `python3 launcher.py --compte` sur le Pi (en SSH).
