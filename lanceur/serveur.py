@@ -314,6 +314,11 @@ class Lanceur(SimpleHTTPRequestHandler):
         if url.path == "/api/temp/fichier":
             q = parse_qs(url.query)
             return self._fichier_temp(q.get("chemin", [""])[0], "apercu" in q)
+        if url.path == "/api/andy/donnees":
+            donnees = andy.historique()
+            if donnees is None:
+                return self._json({"erreur": "historique absent : andy_donnees.local.json sur le Pi"}, 404)
+            return self._json(donnees)
         if url.path == "/api/andy/pesees":
             return self._json({"pesees": andy.lire()})
         if url.path.startswith("/api/"):

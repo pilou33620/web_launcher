@@ -149,7 +149,9 @@ compris, les plus récents d'abord, et se met à jour toute seule.
 (vaccins, vermifuges, consultations, ostéo…), recherche sans accent ni majuscule, filtres par
 type, courbe de poids, export JSON.
 
-- L'historique médical est dans `web/js/andy_donnees.json` (à modifier dans le dépôt).
+- L'historique médical est dans `andy_donnees.local.json`, **sur le Pi seulement** (ignoré par git :
+  le dépôt est public). À modifier sur le Pi. Il est repris tout seul de l'ancien
+  `web/js/andy_donnees.json` (historique git) au premier démarrage après la mise à jour.
 - Les pesées ajoutées depuis la page sont gardées sur le Pi, dans `andy.local.json` (ignoré par
   git) : on les retrouve identiques depuis `launcher.local`, l'IP ou Tailscale.
 - **Sécurité** : réservé aux comptes du launcher (page, données et pesées). Rien de médical

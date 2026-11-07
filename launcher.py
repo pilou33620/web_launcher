@@ -15,7 +15,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lanceur import compte, config, reseau, serveur  # noqa: E402
+from lanceur import andy, compte, config, reseau, serveur  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire  # noqa: E402
 
 
@@ -46,6 +46,7 @@ def main():
     httpd = serveur.ouvrir(int(conf["port"]), conf.get("port_secours"))
     port = httpd.server_address[1]
 
+    andy.historique()      # reprend l'historique d'Andy de l'ancien emplacement, s'il le faut
     gestionnaire = Gestionnaire(conf, ecrire=lambda t: print(t, flush=True))
     gestionnaire.reprendre()
 

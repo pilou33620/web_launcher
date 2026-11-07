@@ -11,3 +11,4 @@ journaux/
 # Python
 __pycache__/
 *.py[cod]
+andy_donnees.local.json

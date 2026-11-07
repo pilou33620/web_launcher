@@ -2,7 +2,7 @@
   "use strict";
 
   /* ===== Données et constantes ===== */
-  var BASE = [];          // l'historique : /js/andy_donnees.json
+  var BASE = [];          // l'historique : /api/andy/donnees (andy_donnees.local.json, sur le Pi)
   var pesees = [];        // les pesées ajoutées depuis la page : gardées par le launcher (/api/andy/pesees)
   var DATA = [];          // les deux, à afficher
   function peseeEvt(p) {
@@ -311,7 +311,7 @@
   });
 
   try {
-    BASE = await (await fetch("/js/andy_donnees.json", { cache: "no-store" })).json();
+    BASE = await (await fetch("/api/andy/donnees", { cache: "no-store" })).json();
     await chargerPesees();
   } catch (x) { document.getElementById("frise").textContent = "Chargement impossible : " + x.message; return; }
   assembler();

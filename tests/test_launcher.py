@@ -574,6 +574,8 @@ class Andy(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.addCleanup(setattr, andy, "FICHIER", andy.FICHIER)     # ne pas toucher aux vraies pesées du Pi
         andy.FICHIER = os.path.join(self.tmp, "andy.json")
+        self.addCleanup(setattr, andy, "HISTORIQUE", andy.HISTORIQUE)
+        andy.HISTORIQUE = os.path.join(self.tmp, "andy_donnees.local.json")
         self.addCleanup(setattr, serveur.Lanceur, "gardien", serveur.Lanceur.gardien)
         self.addCleanup(setattr, serveur.Lanceur, "infos", serveur.Lanceur.infos)
         self.addCleanup(setattr, serveur.Lanceur, "ce_poste", serveur.Lanceur.ce_poste)
@@ -647,24 +649,32 @@ class Andy(unittest.TestCase):
 
     def test_acces_reserve_aux_comptes(self):
         self.assertEqual(self.appeler("/andy.html")[0], 200)
-        self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 200)
+        self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 404)     # plus dans web/ (dépôt public)
+        self.assertEqual(self.appeler("/api/andy/donnees")[0], 200)
         self.serveur.Lanceur.ce_poste = lambda self: False      # appareil non connecté
+        self.assertEqual(self.appeler("/api/andy/donnees")[0], 401)
         self.assertEqual(self.appeler("/andy.html")[0], 302)
-        self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 302)    # l'historique n'est pas public
         self.assertEqual(self.appeler("/js/andy.js")[0], 302)
         self.assertEqual(self.appeler("/api/andy/pesees")[0], 401)
         self.assertEqual(self.appeler("/api/andy/pesees", {"date": "2026-01-01", "poids": 5})[0], 401)
         self.assertEqual(self.appeler("/api/andy/pesees/supprimer", {"id": "x"})[0], 401)
 
-    def test_donnees_livrees(self):
-        with open(os.path.join(self.serveur.DOSSIER_WEB, "js", "andy_donnees.json"), encoding="utf-8") as f:
-            evenements = json.load(f)
+    def test_historique_repris_de_git(self):
+        """Absent du Pi : repris de l'ancien fichier suivi par git (commit COMMIT_ANCIEN), en 0600."""
+        evenements = andy.historique()
         self.assertGreater(len(evenements), 30)
         dates = [e["date"] for e in evenements]
         self.assertEqual(dates, sorted(dates))
         for e in evenements:
             datetime.date.fromisoformat(e["date"])
             self.assertTrue(e["titre"] and e["type"], e)
+        self.assertEqual(os.stat(andy.HISTORIQUE).st_mode & 0o777, 0o600)
+        self.assertEqual(json.loads(self.appeler("/api/andy/donnees")[1]), evenements)
+        self.addCleanup(setattr, andy, "COMMIT_ANCIEN", andy.COMMIT_ANCIEN)
+        andy.COMMIT_ANCIEN = "0000000"
+        os.remove(andy.HISTORIQUE)
+        self.assertIsNone(andy.historique())
+        self.assertEqual(self.appeler("/api/andy/donnees")[0], 404)
 
 
 class Relais(unittest.TestCase):
@@ -897,7 +907,7 @@ class Relais(unittest.TestCase):
             self.assertEqual(self.demander("GET", "/page", Referer="http://%s/o/faux/" % self.hote)[0], 404)
             self.assertEqual(self.demander("PUT", "/api/x")[0], 405)
             # « /css/../ » ne contourne pas la connexion
-            for chemin in ("/css/../js/andy_donnees.json", "/css/%2e%2e/js/andy_donnees.json", "/css/..%2findex.html",
+            for chemin in ("/css/../js/app.js", "/css/%2e%2e/js/app.js", "/css/..%2findex.html",
                            "/icones/%2e%2e/index.html", "/css//../index.html"):
                 self.assertEqual(self.demander("GET", chemin, connecte=False)[0], 404, chemin)
             self.assertEqual(self.demander("GET", "/css/style.css", connecte=False)[0], 200)
