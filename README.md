@@ -345,13 +345,14 @@ python3 launcher.py --compte     # identifiant nouveau : ajouté ; existant : no
 - **Ce que protège le compte** : le launcher (démarrer, arrêter, mettre à jour, installer,
   terminaux, journaux). Les autres sites web ne peuvent pas non plus le piloter (cookie
   `SameSite=Strict`, en-tête `X-Launcher` exigé, nom d'hôte contrôlé contre le DNS rebinding).
-- **Ce qu'il ne protège pas** : les outils eux-mêmes, sur leurs ports (8150, 8080...),
-  restent ouverts au réseau local comme avant. WEB·SUITE garde son propre code d'appairage.
-- **Connexion en HTTP** : sur le réseau de la maison, la page n'est pas chiffrée (pas de
-  HTTPS, qui demanderait un certificat et afficherait des alertes dans les navigateurs).
-  Le mot de passe est protégé là où il est stocké, mais il passe en clair sur le Wi-Fi au
-  moment de la connexion : choisir un mot de passe propre au launcher, pas celui de la
-  messagerie.
+- **Ce qu'il ne protège pas** : les outils eux-mêmes, sur leurs ports (8150, 8080...). Chacun
+  a sa propre garde (`appairage.py`) : un autre appareil y entre le code d'appairage, affiché sur
+  sa carte.
+- **HTTPS sur le réseau de la maison** : le launcher sert aussi HTTPS sur son port
+  (`https://192.168.1.x:80`), et y renvoie les autres appareils, pour que le mot de passe ne passe
+  pas en clair sur le Wi-Fi. Sans la CA du poste (`/appairage/ca.pem`), le navigateur affiche une
+  alerte, comme `launcher.local`, absent du certificat. Sans `openssl` ou avec `WEB_TOOLS_HTTP=1`,
+  tout reste en HTTP, et le journal le dit. Le Pi lui-même reste en HTTP.
 - **Ne pas exposer le port 80 du Pi sur Internet** (pas de redirection de port sur la box) : pour y accéder de l'extérieur, passer par Tailscale Funnel (voir plus haut).
 
 ## Dépannage

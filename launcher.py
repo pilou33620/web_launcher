@@ -15,7 +15,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lanceur import andy, compte, config, reseau, serveur  # noqa: E402
+from lanceur import andy, appairage, compte, config, reseau, serveur  # noqa: E402
 from lanceur.gestionnaire import Gestionnaire  # noqa: E402
 
 
@@ -45,6 +45,12 @@ def main():
     print("  Outils dans %s" % conf["dossier_outils"], flush=True)
     httpd = serveur.ouvrir(int(conf["port"]), conf.get("port_secours"))
     port = httpd.server_address[1]
+    tls, sans_tls = appairage.contexte_tls()
+    if tls:
+        appairage.brancher_tls(httpd, tls)
+    else:
+        print("  HTTP en clair sur le réseau (%s) : le mot de passe peut être lu sur le Wi-Fi." % sans_tls, flush=True)
+    schema = "https" if tls else "http"
 
     andy.historique()      # reprend l'historique d'Andy de l'ancien emplacement, s'il le faut
     gestionnaire = Gestionnaire(conf, ecrire=lambda t: print(t, flush=True))
@@ -71,17 +77,16 @@ def main():
     if relais:
         threading.Thread(target=relais.serve_forever, daemon=True).start()
 
-    suffixe = "" if port == 80 else ":%d" % port
     print("  Ouvrir dans un navigateur :", flush=True)
     ip = reseau.ip_locale()
     if ip:
-        print("    http://%s%s/" % (ip, suffixe))
+        print("    %s://%s:%d/" % (schema, ip, port))
     ts = reseau.ip_tailscale()
     if ts:
-        print("    http://%s%s/   (Tailscale)" % (ts, suffixe))
+        print("    %s://%s:%d/   (Tailscale)" % (schema, ts, port))
     if conf.get("nom_mdns") and not args.sans_mdns:
-        print("    http://%s.local%s/" % (conf["nom_mdns"], suffixe))
-    print("    http://%s.local%s/" % (reseau.nom_machine(), suffixe), flush=True)
+        print("    %s://%s.local:%d/" % (schema, conf["nom_mdns"], port))
+    print("    %s://%s.local:%d/" % (schema, reseau.nom_machine(), port), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

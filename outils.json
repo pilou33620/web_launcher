@@ -21,6 +21,7 @@
       "dossiers": ["tooth_dentaire"],
       "port": 8150,
       "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "venv": true
     },
     {
@@ -33,7 +34,8 @@
       "depot": "https://github.com/pilou33620/web_menu.git",
       "dossiers": ["web_menu"],
       "port": 8080,
-      "commande": ["{python}", "serveur.py", "--port", "{port}", "--maj", "0"]
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--maj", "0"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
     },
     {
       "id": "web_conquete",
@@ -45,7 +47,8 @@
       "depot": "https://github.com/pilou33620/web_conquete.git",
       "dossiers": ["web_conquete"],
       "port": 8790,
-      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"]
+      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
     },
     {
       "id": "web_suite",

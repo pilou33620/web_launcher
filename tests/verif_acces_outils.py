@@ -65,6 +65,19 @@ def hote_vivant(port, nom):
     return "à redémarrer" if statut(port, Host="%s:%d" % (nom, port))[0] == 403 else "tourne"
 
 
+def ouvert_sans_code(port):
+    """Un autre appareil (l'adresse Tailscale du poste n'est pas « ce poste ») entre-t-il sans rien ?"""
+    ip = reseau.ip_tailscale()
+    if not ip or not reseau.port_ouvert(port):
+        return False
+    c = http.client.HTTPConnection(ip, port, timeout=15)
+    try:
+        c.request("GET", "/", headers={"Accept": "text/html"})
+        return c.getresponse().status == 200
+    finally:
+        c.close()
+
+
 def demarrer(dossier, script):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -128,6 +141,8 @@ def main():
             for id_, (dossier, port) in ports.items():
                 erreur = code_hote(dossier, nom) if os.path.isdir(dossier) else "dossier absent"
                 etat = hote_vivant(port, nom)
+                if etat == "tourne" and ouvert_sans_code(port):
+                    etat = "PIÈGE : ouvert sans code"
                 port_essai = port
                 if id_ in SCRIPTS:
                     p, port_essai = demarrer(dossier, SCRIPTS[id_])
@@ -149,7 +164,7 @@ def main():
                 lignes.append("%s %-14s %s, %s%s" % ("KO" if mauvais else "ok", id_, etat, relais_txt,
                                                      " — " + erreur if erreur else ""))
             launcher = hote_vivant(conf["port"], nom)
-            if launcher == "PIÈGE ACCEPTÉ":
+            if launcher.startswith("PIÈGE"):
                 problemes += 1
             lignes.append("%s %-14s %s" % ("KO" if launcher.startswith("PIÈGE") else "ok", "web_launcher", launcher))
         finally:

@@ -677,6 +677,74 @@ class Andy(unittest.TestCase):
         self.assertEqual(self.appeler("/api/andy/donnees")[0], 404)
 
 
+class HttpsSurLePort(unittest.TestCase):
+    """Le launcher sur le Wi-Fi : https sur son port, un autre appareil en HTTP y est renvoyé."""
+
+    def setUp(self):
+        import ssl
+        import threading
+        from lanceur import appairage, serveur
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        patch = mock.patch.dict(os.environ, {"WEB_TOOLS_JETON_FICHIER": os.path.join(self.tmp, "jeton.txt")})
+        patch.start()
+        self.addCleanup(patch.stop)
+        ctx, raison = appairage.contexte_tls()
+        if not ctx:
+            self.skipTest(raison)
+        for nom in ("gardien", "infos", "gestionnaire"):
+            self.addCleanup(setattr, serveur.Lanceur, nom, getattr(serveur.Lanceur, nom))
+        serveur.Lanceur.gardien = compte.Gardien(os.path.join(self.tmp, "c.json"), os.path.join(self.tmp, "s.json"))
+        self.assertIsNone(serveur.Lanceur.gardien.ajouter("pilou", "un-mot-de-passe-long"))
+        serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
+        serveur.Lanceur.gestionnaire = mock.Mock()
+        self.httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        appairage.brancher_tls(self.httpd, ctx)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.addCleanup(self.httpd.server_close)
+        self.addCleanup(self.httpd.shutdown)
+        self.port = self.httpd.server_address[1]
+        self.client = ssl.create_default_context()
+        self.client.check_hostname, self.client.verify_mode = False, ssl.CERT_NONE
+        self.Lanceur = serveur.Lanceur
+        self.CA = appairage.CA
+
+    def demander(self, methode, chemin, tls=False, **entetes):
+        import http.client
+        h = {k.replace("_", "-"): v for k, v in entetes.items()}
+        corps = h.pop("corps", None)
+        c = (http.client.HTTPSConnection("127.0.0.1", self.port, timeout=10, context=self.client) if tls
+             else http.client.HTTPConnection("127.0.0.1", self.port, timeout=10))
+        c.request(methode, chemin, body=corps, headers=h)
+        r = c.getresponse()
+        r.read()
+        c.close()
+        return r
+
+    def autre_appareil(self):
+        return mock.patch.object(self.Lanceur, "_pair_local", lambda s: False)
+
+    def test_ce_poste_reste_en_http(self):
+        self.assertNotEqual(self.demander("GET", "/connexion.html").status, 307)
+
+    def test_autre_appareil_renvoye_vers_https_avec_le_port(self):
+        with self.autre_appareil():
+            r = self.demander("GET", "/connexion.html", Host="192.168.1.31")
+            self.assertEqual((r.status, r.getheader("Location")), (307, "https://192.168.1.31:%d/connexion.html" % self.port))
+            r = self.demander("GET", "/x", Host="192.168.1.31:80")
+            self.assertEqual(r.getheader("Location"), "https://192.168.1.31:80/x")
+            self.assertEqual(self.demander("GET", self.CA).status, 200)     # la CA, sans connexion
+            self.assertEqual(self.demander("GET", "/connexion.html", tls=True).status, 200)
+
+    def test_cookie_secure_sans_hsts_sur_le_wifi(self):
+        corps = json.dumps({"login": "pilou", "mot_de_passe": "un-mot-de-passe-long"})
+        with self.autre_appareil():
+            r = self.demander("POST", "/api/connexion", tls=True, corps=corps, X_Launcher="1", Content_Type="application/json")
+        self.assertEqual(r.status, 200)
+        self.assertIn("Secure", r.getheader("Set-Cookie"))
+        self.assertIsNone(r.getheader("Strict-Transport-Security"))
+
+
 class Relais(unittest.TestCase):
     """Un outil ouvert à travers le launcher (/o/<id>/) : connexion, liens, redirections, WebSocket."""
 

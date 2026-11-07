@@ -15,7 +15,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import andy, claude, compte, config, depot, relais, reseau
+from . import andy, appairage, claude, compte, config, depot, relais, reseau
 from .gestionnaire import OccupeErreur
 
 DOSSIER_WEB = os.path.join(config.RACINE, "web")
@@ -105,7 +105,19 @@ class Lanceur(SimpleHTTPRequestHandler):
         if not self._hote_permis():
             self.send_error(403, "Nom d'hôte non autorisé")
             return False
-        return True
+        return self._tls_ok()
+
+    def _tls_ok(self):
+        """Autre appareil arrivé en HTTP : renvoyé vers https:// sur ce même port, pour que le mot de
+        passe ne passe pas en clair sur le Wi-Fi. La CA du poste se télécharge sans connexion."""
+        if not getattr(self.server, "tls_web_tools", None):
+            return True
+        hote = self.headers.get("Host") or self.connection.getsockname()[0]
+        if ":" not in hote.split("]")[-1]:      # le port 80 est implicite en http, pas en https
+            hote += ":%d" % self.server.server_address[1]
+        del self.headers["Host"]
+        self.headers["Host"] = hote
+        return appairage.filtrer_tls(self, lambda h: h._pair_local())
 
     # -- connexion -------------------------------------------------------
 
@@ -149,6 +161,9 @@ class Lanceur(SimpleHTTPRequestHandler):
         return "internet"           # adresse inconnue : tous les visiteurs d'Internet comptent ensemble
 
     def https(self):
+        return appairage.en_https(self) or self._https_public()
+
+    def _https_public(self):
         return self._par_proxy() and (self.headers.get("X-Forwarded-Proto") or "").strip().lower() == "https"
 
     def hote_public(self):
@@ -182,7 +197,7 @@ class Lanceur(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", self.cadre)
         self.send_header("Referrer-Policy", "no-referrer")
-        if self.https():
+        if self._https_public():                # pas sur le Wi-Fi : son certificat n'a de sens qu'avec la CA du poste
             self.send_header("Strict-Transport-Security", "max-age=31536000")
         super().end_headers()
 

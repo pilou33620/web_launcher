@@ -58,10 +58,10 @@ function hoteOutils() {
   if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) return h;   // IP déjà tapée (réseau local, Tailscale 100.x) : on la garde
   return (etat && (etat.launcher.ici || etat.launcher.ip)) || h;   // un nom (pilou.local, MagicDNS) : l'IP jointe
 }
-// Page ouverte en https (Tailscale Funnel, depuis Internet) : les ports des outils ne sont pas joignables,
-// l'outil passe par le relais du launcher, sur le port 8443 : une autre origine que le launcher,
-// pour qu'une page d'outil ne puisse pas appeler l'API du launcher.
-const parRelais = () => location.protocol === "https:";
+// Page ouverte par Tailscale Funnel (https sans port, depuis Internet) : les ports des outils ne sont pas
+// joignables, l'outil passe par le relais du launcher, sur le port 8443 : une autre origine que le launcher,
+// pour qu'une page d'outil ne puisse pas appeler l'API du launcher. Sur le Wi-Fi, le https garde son port (:80).
+const parRelais = () => location.protocol === "https:" && !location.port;
 const urlOutil = (o) => parRelais()
   ? `https://${location.hostname}:${(etat && etat.launcher.port_public_relais) || 8443}/o/${o.id}/`
   : `http://${hoteOutils()}:${o.port}/`;
