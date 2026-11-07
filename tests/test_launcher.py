@@ -610,6 +610,212 @@ class Andy(unittest.TestCase):
             self.assertTrue(e["titre"] and e["type"], e)
 
 
+class Relais(unittest.TestCase):
+    """Un outil ouvert à travers le launcher (/o/<id>/) : connexion, liens, redirections, WebSocket."""
+
+    def setUp(self):
+        import http.server
+        import threading
+        import types
+        from lanceur import serveur
+        self.serveur = serveur
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        test = self
+
+        class Outil(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def repondre(self, corps, type_="text/plain", statut=200, entetes=()):
+                if isinstance(corps, str):
+                    corps = corps.encode()
+                self.send_response(statut)
+                self.send_header("Content-Type", type_)
+                self.send_header("Content-Length", str(len(corps)))
+                for k, v in entetes:
+                    self.send_header(k, v)
+                self.end_headers()
+                self.wfile.write(corps)
+
+            def do_GET(self):
+                if self.headers.get("Upgrade", "").lower() == "websocket":
+                    self.send_response(101)
+                    self.send_header("Upgrade", "websocket")
+                    self.send_header("Connection", "Upgrade")
+                    self.end_headers()
+                    self.wfile.flush()
+                    test.vu_ws = (self.path, self.headers.get("Host"), self.headers.get("Origin"))
+                    while True:
+                        d = self.request.recv(1024)
+                        if not d:
+                            return
+                        self.request.sendall(d.upper())
+                if self.path == "/":
+                    return self.repondre('<a href="/page">a</a><img src=\'/img.png\'><a href="//ext.example/x">b</a>'
+                                         '<a href="relatif">c</a><form action="/envoyer">', "text/html; charset=utf-8")
+                if self.path == "/page":
+                    return self.repondre("page:" + self.headers["Host"])
+                if self.path == "/redir":
+                    return self.repondre("", statut=302, entetes=[("Location", "http://%s/page" % self.headers["Host"])])
+                if self.path == "/cookie":
+                    return self.repondre("ok", entetes=[("Set-Cookie", "a=1; Domain=exemple.fr; Path=/")])
+                if self.path == "/flux":                   # sans Content-Length : fermé à la fin
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.end_headers()
+                    self.wfile.write(b"data: 1\n\ndata: 2\n\n")
+                    return
+                self.repondre("introuvable", statut=404)
+
+            def do_POST(self):
+                corps = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                vu = {k: self.headers.get(k) for k in ("Host", "Origin", "Referer", "Cookie", "Authorization")}
+                vu["taille"] = len(corps)
+                vu["somme"] = sum(corps) % 65536
+                self.repondre(json.dumps(vu), "application/json")
+
+        outil = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Outil)
+        threading.Thread(target=outil.serve_forever, daemon=True).start()
+        self.addCleanup(outil.server_close)
+        self.addCleanup(outil.shutdown)
+        self.port_outil = outil.server_address[1]
+        morts = port_libre()
+        for nom in ("gardien", "infos", "gestionnaire", "ce_poste"):
+            self.addCleanup(setattr, serveur.Lanceur, nom, getattr(serveur.Lanceur, nom))
+        self.mdp = "un-mot-de-passe-long"
+        serveur.Lanceur.gardien = compte.Gardien(os.path.join(self.tmp, "c.json"), os.path.join(self.tmp, "s.json"))
+        self.assertIsNone(serveur.Lanceur.gardien.ajouter("pilou", self.mdp))
+        self.jeton, _ = serveur.Lanceur.gardien.verifier("pilou", self.mdp, "127.0.0.1")
+        serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
+        serveur.Lanceur.gestionnaire = types.SimpleNamespace(par_id={
+            "faux": types.SimpleNamespace(port=self.port_outil), "mort": types.SimpleNamespace(port=morts)})
+        httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Lanceur)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        self.port = httpd.server_address[1]
+        self.hote = "127.0.0.1:%d" % self.port
+
+    def demander(self, methode, chemin, corps=None, connecte=True, **entetes):
+        import http.client
+        h = {"Cookie": "launcher_session=%s" % self.jeton} if connecte else {}
+        h.update({k.replace("_", "-"): v for k, v in entetes.items()})
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        c.request(methode, chemin, body=corps, headers=h)
+        r = c.getresponse()
+        donnees = r.read()
+        c.close()
+        return r.status, r, donnees
+
+    def test_connexion_exigee(self):
+        code, r, _ = self.demander("GET", "/o/faux/", connecte=False, Accept="text/html")
+        self.assertEqual((code, r.getheader("Location")), (302, "/connexion.html"))
+        self.assertEqual(self.demander("GET", "/o/faux/page", connecte=False)[0], 401)
+        self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", connecte=False)[0], 401)
+        # le Referer d'un outil ne donne aucun droit
+        self.assertEqual(self.demander("GET", "/page", connecte=False, Referer="http://%s/o/faux/" % self.hote)[0], 401)
+
+    def test_page_et_liens(self):
+        code, r, corps = self.demander("GET", "/o/faux/")
+        self.assertEqual(code, 200)
+        texte = corps.decode()
+        self.assertIn('href="/o/faux/page"', texte)
+        self.assertIn("src='/o/faux/img.png'", texte)
+        self.assertIn('action="/o/faux/envoyer"', texte)
+        self.assertIn('href="//ext.example/x"', texte)          # autre site : intact
+        self.assertIn('href="relatif"', texte)
+        self.assertEqual(int(r.getheader("Content-Length")), len(corps))
+        self.assertEqual(r.getheader("Referrer-Policy"), "same-origin")
+        self.assertIn("relais_outil=faux", r.getheader("Set-Cookie"))
+        self.assertEqual(self.demander("GET", "/o/faux/page")[2], b"page:127.0.0.1:%d" % self.port_outil)
+
+    def test_sans_barre_finale_et_inconnu(self):
+        code, r, _ = self.demander("GET", "/o/faux")
+        self.assertEqual((code, r.getheader("Location")), (302, "/o/faux/"))
+        self.assertEqual(self.demander("GET", "/o/absent/")[0], 404)
+        self.assertEqual(self.demander("GET", "/o/mort/")[0], 502)
+        code, _, corps = self.demander("GET", "/o/faux/inconnu")
+        self.assertEqual((code, corps), (404, b"introuvable"))   # le 404 de l'outil, tel quel
+
+    def test_redirection_et_cookie(self):
+        code, r, _ = self.demander("GET", "/o/faux/redir")
+        self.assertEqual((code, r.getheader("Location")), (302, "/o/faux/page"))
+        cookies = self.demander("GET", "/o/faux/cookie")[1].headers.get_all("Set-Cookie")
+        self.assertEqual(cookies[0], "a=1; Path=/")
+        self.assertTrue(cookies[1].startswith("relais_outil=faux;"))
+
+    def test_referer_pour_les_liens_absolus(self):
+        ref = "http://%s/o/faux/" % self.hote
+        self.assertEqual(self.demander("GET", "/page", Referer=ref)[2], b"page:127.0.0.1:%d" % self.port_outil)
+        self.assertEqual(self.demander("GET", "/page", Referer="http://%s/o/faux/sous/x" % self.hote)[0], 200)
+        self.assertEqual(self.demander("GET", "/page", Referer="http://autre.example/o/faux/")[0], 404)   # autre site
+        self.assertEqual(self.demander("GET", "/page")[0], 404)                                           # le launcher n'a pas /page
+        self.assertEqual(self.demander("GET", "/api/inconnue")[0], 404)                                   # route du launcher
+
+    def test_envoi_nettoye(self):
+        gros = bytes(range(256)) * 1000                          # 256 000 octets
+        code, _, corps = self.demander(
+            "POST", "/o/faux/echo", gros, Origin="https://pi.tail1234.ts.net", Authorization="Basic eHg6eHg=",
+            Referer="http://%s/o/faux/dossier/page?x=1" % self.hote, Cookie="launcher_session=%s; theme=sombre" % self.jeton)
+        vu = json.loads(corps)
+        self.assertEqual(code, 200)
+        self.assertEqual((vu["taille"], vu["somme"]), (len(gros), sum(gros) % 65536))
+        self.assertEqual(vu["Host"], "127.0.0.1:%d" % self.port_outil)
+        self.assertEqual(vu["Origin"], "http://127.0.0.1:%d" % self.port_outil)
+        self.assertEqual(vu["Referer"], "http://127.0.0.1:%d/dossier/page?x=1" % self.port_outil)
+        self.assertEqual(vu["Cookie"], "theme=sombre")           # ni session du launcher, ni rien d'autre
+        self.assertIsNone(vu["Authorization"])
+
+    def test_flux_sans_longueur(self):
+        code, r, corps = self.demander("GET", "/o/faux/flux")
+        self.assertEqual((code, corps), (200, b"data: 1\n\ndata: 2\n\n"))
+        self.assertEqual(r.getheader("Content-Type"), "text/event-stream")
+
+    def test_launcher_inchange(self):
+        # ni /o/ ni Referer : les routes du launcher répondent comme avant
+        self.assertEqual(self.demander("GET", "/api/inconnue")[2], b'{"erreur": "route inconnue"}')
+        self.assertEqual(self.demander("GET", "/connexion.html", connecte=False)[0], 200)
+        self.assertEqual(self.demander("PUT", "/api/x")[0], 405)
+        self.assertEqual(self.demander("POST", "/api/outils/faux/demarrer", b"{}")[0], 403)   # X-Launcher exigé
+
+    def websocket(self, chemin, **entetes):
+        import socket as _s
+        s = _s.create_connection(("127.0.0.1", self.port), timeout=10)
+        self.addCleanup(s.close)
+        h = {"Host": self.hote, "Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Key": "abc",
+             "Sec-WebSocket-Version": "13", "Origin": "https://pi.tail1234.ts.net"}
+        h.update(entetes)
+        s.sendall(("GET %s HTTP/1.1\r\n%s\r\n\r\n" % (chemin, "\r\n".join("%s: %s" % kv for kv in h.items()))).encode())
+        return s
+
+    def lire(self, s, jusqua):
+        donnees = b""
+        while jusqua not in donnees:
+            morceau = s.recv(4096)
+            if not morceau:
+                break
+            donnees += morceau
+        return donnees
+
+    def test_websocket(self):
+        biscuit = "launcher_session=%s" % self.jeton
+        s = self.websocket("/o/faux/ws", Cookie=biscuit)
+        self.assertIn(b"101", self.lire(s, b"\r\n\r\n").split(b"\r\n")[0])
+        s.sendall(b"bonjour")
+        self.assertEqual(self.lire(s, b"BONJOUR"), b"BONJOUR")
+        self.assertEqual(self.vu_ws, ("/ws", "127.0.0.1:%d" % self.port_outil, "http://127.0.0.1:%d" % self.port_outil))
+        # chemin absolu /ws : l'outil est retrouvé par le cookie du relais
+        s2 = self.websocket("/ws", Cookie=biscuit + "; relais_outil=faux")
+        self.assertIn(b"101", self.lire(s2, b"\r\n\r\n").split(b"\r\n")[0])
+        s2.sendall(b"ok")
+        self.assertEqual(self.lire(s2, b"OK"), b"OK")
+
+    def test_websocket_connexion_exigee(self):
+        s = self.websocket("/o/faux/ws")
+        self.assertIn(b"401", self.lire(s, b"\r\n").split(b"\r\n")[0])
+
+
 class Claude(unittest.TestCase):
     def test_dossiers_et_liste(self):
         tmp = tempfile.mkdtemp()

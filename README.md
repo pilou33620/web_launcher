@@ -255,6 +255,7 @@ lanceur/serveur.py       serveur web et API (/api/etat, /api/outils/<id>/<action
 lanceur/gestionnaire.py  démarrage, arrêt, reprise, installation, mises à jour
 lanceur/depot.py         git (fetch, pull --ff-only, clone)
 lanceur/reseau.py        IP, ports, annonce mDNS de launcher.local
+lanceur/relais.py        relais des outils à /o/<id>/ (https, WebSocket) pour l'accès depuis Internet
 lanceur/compte.py        comptes, mots de passe hachés, sessions
 lanceur/console.py       terminal d'un outil (pseudo-terminal, saisie via journaux/<id>.entree)
 web/                     les pages (launcher, Terminaux), HTML, CSS, JS sans dépendance
@@ -266,6 +267,31 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 
 Tests : `python3 -m unittest discover tests` (un faux outil et un dépôt git local,
 sans réseau).
+
+## Depuis n'importe où, sans application (Tailscale Funnel)
+
+Le launcher peut être exposé en https avec `pi_launcher_securise.sh` (dépôt `web_script`) :
+Tailscale Funnel + Caddy (mot de passe) devant le launcher, aucun port ouvert sur la box,
+**rien à installer sur l'appareil qui se connecte** : un navigateur suffit.
+
+Une seule adresse est alors joignable, celle du launcher. Les outils passent donc **par lui**,
+à `/o/<id>/` (exemple : `https://pi.xxx.ts.net/o/web_menu/`). Sur la page ouverte en https,
+**Ouvrir ↗** et **Copier l'adresse** prennent ce chemin tout seuls ; sur le réseau local ou en
+http, rien ne change (adresse directe `IP:port`).
+
+- Connexion du launcher exigée pour chaque requête vers un outil. Son cookie de session
+  n'est jamais transmis à l'outil (ni l'en-tête `Authorization` de Caddy).
+- Pour l'outil, la requête vient de `127.0.0.1` : il faut donc que l'outil soit démarré
+  (sinon « L'outil ne répond pas »). Les liens absolus (`/api/x`, `/css/a.css`), les
+  redirections, les cookies, les envois de fichiers, les flux (SSE) et les **WebSocket**
+  sont pris en charge (`lanceur/relais.py`).
+- Limites : un outil qui écrit lui-même une adresse absolue dans son JavaScript
+  (`location.origin + "/x"`) fonctionne grâce au Referer ; un outil qui refuse tout Referer
+  ne marchera pas par ce chemin. Les outils partagent l'origine du launcher : n'y relayer
+  que des outils de confiance (les siens).
+- Conséquence de `127.0.0.1` : un outil qui ne demande rien « depuis ce poste » (ex. code
+  d'appairage de WEB·SUITE) ne le demande pas non plus par le relais. Celui qui a passé la
+  connexion du launcher a déjà la main sur ces outils.
 
 ## Comptes
 
@@ -307,7 +333,7 @@ python3 launcher.py --compte     # identifiant nouveau : ajouté ; existant : no
   Le mot de passe est protégé là où il est stocké, mais il passe en clair sur le Wi-Fi au
   moment de la connexion : choisir un mot de passe propre au launcher, pas celui de la
   messagerie.
-- **Ne pas exposer le port 80 du Pi sur Internet** (pas de redirection de port sur la box).
+- **Ne pas exposer le port 80 du Pi sur Internet** (pas de redirection de port sur la box) : pour y accéder de l'extérieur, passer par Tailscale Funnel (voir plus haut).
 
 ## Dépannage
 

@@ -14,7 +14,7 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
-from . import andy, claude, compte, config, depot, reseau
+from . import andy, claude, compte, config, depot, relais, reseau
 from .gestionnaire import OccupeErreur
 
 DOSSIER_WEB = os.path.join(config.RACINE, "web")
@@ -65,6 +65,7 @@ class Lanceur(SimpleHTTPRequestHandler):
     visites = Visites("launcher")   # les appareils connectés, dans la sortie du launcher
     timeout = 30                    # une connexion muette ne garde pas un thread pour toujours
     cadre = "DENY"                  # X-Frame-Options de la réponse (aperçus de temp/ : SAMEORIGIN)
+    relais = False                  # réponse d'un outil relayé : ses en-têtes restent les siens
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DOSSIER_WEB, **kwargs)
@@ -131,6 +132,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def end_headers(self):
+        if self.relais:
+            return super().end_headers()
         self.send_header("Cache-Control", "no-cache")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", self.cadre)
@@ -186,7 +189,36 @@ class Lanceur(SimpleHTTPRequestHandler):
 
     # -- routes ---------------------------------------------------------
 
+    def _vers_outil(self):
+        """Une requête pour un web tool (/o/<id>/...) : connexion exigée, puis relayée (relais.py)."""
+        c = relais.cible(self)
+        if c is None:
+            return False
+        id_, chemin = c
+        if not self.connecte():
+            if self.command in ("GET", "HEAD") and "text/html" in (self.headers.get("Accept") or ""):
+                self._rediriger("/connexion.html")
+            else:
+                self._texte("Connexion requise.", 401)
+            return True
+        o = self.gestionnaire.par_id.get(id_)
+        if o is None:
+            self._texte("Outil inconnu.", 404)
+        elif chemin == "":
+            self._rediriger(relais.prefixe(id_))
+        else:
+            relais.relayer(self, o.port, id_, chemin)
+        return True
+
+    def _autre_methode(self):
+        if not self._vers_outil():
+            self._texte("Méthode non permise.", 405)
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _autre_methode
+
     def do_GET(self):
+        if self._vers_outil():
+            return
         url = urlparse(self.path)
         if url.path in PUBLIC or url.path.startswith(("/css/", "/icones/")):
             if url.path == "/connexion.html" and self.gardien.actif and self.connecte():
@@ -237,6 +269,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if self._vers_outil():
+            return
         # En-tête propre au launcher : un autre site ne peut pas l'envoyer sans
         # autorisation CORS (que le launcher ne donne jamais).
         if self.headers.get("X-Launcher") != "1":
