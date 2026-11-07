@@ -269,12 +269,12 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 ```
 
 Tests : `python3 -m unittest discover tests` (un faux outil et un dépôt git local,
-sans réseau). `python3 tests/verif_acces_outils.py` : nom Tailscale et relais, pour
-tous les outils (une ligne par outil ; WEB_CAO, ANTENNA et 3D sont lancés exprès sur un port libre).
+sans réseau). Le bouton **Sécurité** affiche `~/Documents/rpi_securite` : le diagramme, les scripts
+de mise en ligne et de pare-feu, et `verif_acces_outils.py`, à lancer sur le Pi.
 
 ## Depuis n'importe où, sans application (Tailscale Funnel)
 
-Le launcher peut être exposé en https avec `pi_launcher_securise.sh` (dépôt `web_script`) :
+Le launcher peut être exposé en https avec `pi_launcher_securise.sh` (dossier `rpi_securite`) :
 Tailscale Funnel + Caddy (mot de passe) devant le launcher, aucun port ouvert sur la box,
 **rien à installer sur l'appareil qui se connecte** : un navigateur suffit.
 

@@ -517,6 +517,22 @@ class Temp(unittest.TestCase):
         from urllib.parse import quote
         return self.demander("/api/temp/fichier?chemin=" + quote(chemin, safe="") + suite)
 
+    def test_dossier_securite(self):
+        dossier = os.path.join(self.tmp, "rpi_securite")
+        os.makedirs(os.path.join(dossier, ".git"))
+        for nom in ("diagramme.html", "script.sh", ".git/config"):
+            with open(os.path.join(dossier, nom), "w") as f:
+                f.write("x")
+        os.symlink(os.path.join(self.tmp, "secret.txt"), os.path.join(dossier, "lien.txt"))
+        d = json.loads(self.demander("/api/securite")[2])
+        self.assertEqual(sorted(f["chemin"] for f in d["fichiers"]), ["diagramme.html", "script.sh"])
+        code, h, _ = self.demander("/api/securite/fichier?chemin=diagramme.html")
+        self.assertEqual(code, 200)
+        self.assertIn("sandbox", h["Content-Security-Policy"])
+        for chemin in (".git/config", "lien.txt", "../secret.txt"):
+            self.assertEqual(self.demander("/api/securite/fichier?chemin=" + chemin)[0], 404, chemin)
+        self.assertEqual(self.demander("/api/autre/fichier?chemin=diagramme.html")[0], 404)
+
     def test_liste(self):
         code, _, corps = self.demander("/api/temp")
         d = json.loads(corps)

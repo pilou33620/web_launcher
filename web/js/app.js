@@ -540,8 +540,9 @@ $("#claude-dossiers").addEventListener("click", (ev) => {
 /* -- temp : ce que les IA déposent pour le montrer ------------------------- */
 
 let tempChoisi = null;
+let apiVue = "/api/temp";       // le même affichage sert au bouton Sécurité
 
-const urlTemp = (chemin) => "/api/temp/fichier?chemin=" + encodeURIComponent(chemin);
+const urlTemp = (chemin) => apiVue + "/fichier?chemin=" + encodeURIComponent(chemin);
 const octets = (n) => (n < 1024 ? `${n} o` : n < 1048576 ? `${Math.round(n / 1024)} Ko` : `${(n / 1048576).toFixed(1)} Mo`);
 const VUES_TEMP = {
   image: (u) => `<img src="${u}" alt="">`,
@@ -553,10 +554,11 @@ const VUES_TEMP = {
 };
 
 async function rendreTemp() {
-  const r = await fetch("/api/temp", { cache: "no-store" });
+  const r = await fetch(apiVue, { cache: "no-store" });
   if (r.status === 401) return location.replace("/connexion.html");
   const d = await r.json();
   if (!r.ok) throw new Error(d.erreur || "Erreur " + r.status);
+  if (apiVue !== "/api/temp") d.fichiers.sort((a, b) => a.chemin.localeCompare(b.chemin));
   $("#temp-dossier").textContent = d.dossier + (d.total > d.fichiers.length ? ` · les ${d.fichiers.length} plus récents sur ${d.total}` : "");
   const html = d.fichiers.map((f) => `
     <button class="temp-fichier${f.chemin === tempChoisi ? " choisi" : ""}" data-temp="${echap(f.chemin)}" data-genre="${echap(f.genre)}">
@@ -587,10 +589,17 @@ async function afficherTemp(chemin, genre) {
   if (tempChoisi === chemin) $("#temp-vue pre").textContent = texte;   // un autre fichier a pu être choisi entre-temps
 }
 
-$("#ouvrir-temp").onclick = async () => {
-  try { await rendreTemp(); $("#temp").showModal(); }
-  catch (e) { toast(e.message, true); }
-};
+async function ouvrirVue(api, titre, premier) {
+  apiVue = api;
+  $("#temp-titre").textContent = titre;
+  try {
+    await rendreTemp();
+    $("#temp").showModal();
+    if (premier) await afficherTemp(premier, "html");
+  } catch (e) { toast(e.message, true); }
+}
+$("#ouvrir-temp").onclick = () => ouvrirVue("/api/temp", "Temp");
+$("#ouvrir-securite").onclick = () => ouvrirVue("/api/securite", "Sécurité", "diagramme.html");
 $("#temp-fermer").onclick = () => $("#temp").close();
 $("#temp").addEventListener("close", () => {        // coupe aussi une vidéo ou un son en cours
   tempChoisi = null;

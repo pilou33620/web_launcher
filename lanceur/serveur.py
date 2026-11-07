@@ -325,13 +325,13 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"position": position, "texte": texte, "pid": o.pid,
                                "phase": o.phase, "attend_saisie": o.attend_saisie,
                                "terminal": o.avec_terminal})
-        if url.path == "/api/temp":
-            racine = os.path.join(self.infos["dossier_outils"], "temp")
+        if url.path in DOSSIERS_VUS:
+            racine = os.path.join(self.infos["dossier_outils"], DOSSIERS_VUS[url.path])
             fichiers = lister_temp(racine)
             return self._json({"dossier": racine, "total": len(fichiers), "fichiers": fichiers[:LISTE_TEMP]})
-        if url.path == "/api/temp/fichier":
+        if url.path.endswith("/fichier") and url.path[:-8] in DOSSIERS_VUS:
             q = parse_qs(url.query)
-            return self._fichier_temp(q.get("chemin", [""])[0], "apercu" in q)
+            return self._fichier_temp(DOSSIERS_VUS[url.path[:-8]], q.get("chemin", [""])[0], "apercu" in q)
         if url.path == "/api/andy/donnees":
             donnees = andy.historique()
             if donnees is None:
@@ -436,10 +436,10 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": str(exc)}, 409)
         return self._json({"erreur": "route inconnue"}, 404)
 
-    def _fichier_temp(self, relatif, apercu):
-        """Un fichier de temp/. Il vient d'une IA, donc rien n'y tourne sur l'origine du launcher :
-        HTML et SVG sont bloqués par CSP, le reste part en texte brut ou en téléchargement."""
-        cible = chemin_temp(os.path.join(self.infos["dossier_outils"], "temp"), relatif)
+    def _fichier_temp(self, dossier, relatif, apercu):
+        """Un fichier de temp/ ou de rpi_securite/. Il vient d'une IA, donc rien n'y tourne sur l'origine
+        du launcher : HTML et SVG sont bloqués par CSP, le reste part en texte brut ou en téléchargement."""
+        cible = chemin_temp(os.path.join(self.infos["dossier_outils"], dossier), relatif)
         if cible is None:
             return self._json({"erreur": "fichier introuvable"}, 404)
         try:
@@ -634,6 +634,7 @@ def lire_fin(chemin, lignes):
 
 
 # Types affichés dans le navigateur : les autres fichiers sont du texte brut ou un téléchargement.
+DOSSIERS_VUS = {"/api/temp": "temp", "/api/securite": "rpi_securite"}     # affichés par le launcher, en lecture seule
 TYPES_TEMP = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
     ".webp": "image/webp", ".avif": "image/avif", ".bmp": "image/bmp", ".svg": "image/svg+xml",
