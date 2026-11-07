@@ -154,6 +154,15 @@ class Gestionnaire:
         self.lus = {}                       # id -> position déjà relayée du journal (_relayer_connexions)
         os.makedirs(config.JOURNAUX, exist_ok=True)
 
+    def port_sous_outil(self, id_):
+        """Outil lancé par un autre (WEB_CAO par WEB·SUITE) : pas de carte, mais joignable par le relais."""
+        # shortcut: port du catalogue, le relais ne suit pas un outil qui a dû en prendre un autre (port occupé)
+        for o in self.outils:
+            port = o.conf.get("relais_sous_outils", {}).get(id_)
+            if port:
+                return int(port)
+        return None
+
     # -- état persistant ----------------------------------------------
 
     def sauver(self):

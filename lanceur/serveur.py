@@ -91,6 +91,8 @@ class Lanceur(SimpleHTTPRequestHandler):
         alias = (self.infos.get("nom_mdns") or "").lower()
         if h in ("", "localhost", nom, nom + ".local", alias, alias + ".local"):
             return True
+        if h.endswith(".ts.net"):
+            return h == reseau.nom_tailscale()      # le nom exact de ce poste, jamais tout *.ts.net
         try:
             ipaddress.ip_address(h.split("%")[0])
             return True
@@ -252,12 +254,13 @@ class Lanceur(SimpleHTTPRequestHandler):
                 self._texte("Connexion requise.", 401)
             return True
         o = self.gestionnaire.par_id.get(id_)
-        if o is None:
+        port = o.port if o else self.gestionnaire.port_sous_outil(id_)
+        if port is None:
             self._texte("Outil inconnu.", 404)
         elif chemin == "":
             self._rediriger(relais.prefixe(id_))
         else:
-            relais.relayer(self, o.port, id_, chemin)
+            relais.relayer(self, port, id_, chemin)
         return True
 
     def _autre_methode(self):

@@ -760,7 +760,8 @@ class Relais(unittest.TestCase):
         self.jeton, _ = serveur.Lanceur.gardien.verifier("pilou", self.mdp, "127.0.0.1")
         serveur.Lanceur.infos = {"port": 0, "dossier_outils": self.tmp}
         serveur.Lanceur.gestionnaire = types.SimpleNamespace(par_id={
-            "faux": types.SimpleNamespace(port=self.port_outil), "mort": types.SimpleNamespace(port=morts)})
+            "faux": types.SimpleNamespace(port=self.port_outil), "mort": types.SimpleNamespace(port=morts)},
+            port_sous_outil={"sous": self.port_outil}.get)
         httpd = serveur.ThreadingHTTPServer(("127.0.0.1", 0), serveur.Relais)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
@@ -795,6 +796,26 @@ class Relais(unittest.TestCase):
         self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", connecte=False)[0], 401)
         # le Referer d'un outil ne donne aucun droit
         self.assertEqual(self.demander("GET", "/page", connecte=False, Referer="http://%s/o/faux/" % self.hote)[0], 401)
+
+    def test_sous_outil_par_le_relais(self):
+        self.assertEqual(self.demander("GET", "/o/sous/")[0], 200)
+        self.assertEqual(self.demander("GET", "/o/inconnu/")[0], 404)
+        self.assertEqual(self.demander("GET", "/o/sous/", connecte=False)[0], 401)
+
+    def test_catalogue_des_sous_outils(self):
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outils.json")) as f:
+            conf = json.load(f)
+        conf["dossier_outils"] = self.tmp
+        g = Gestionnaire(conf, ecrire=lambda t: None)
+        self.assertEqual([g.port_sous_outil(i) for i in ("web_cao", "web_antenna", "web_3d", "web_suite", "x")],
+                         [8000, 8732, 8139, None, None])
+
+    def test_nom_tailscale_du_poste(self):
+        with mock.patch.object(self.serveur.reseau, "nom_tailscale", return_value=self.PUBLIC):
+            self.assertEqual(self.demander("GET", "/o/faux/", Host=self.PUBLIC + ":18089")[0], 200)
+            self.assertEqual(self.demander("GET", "/o/faux/", Host="autre.tail1234.ts.net")[0], 403)
+        with mock.patch.object(self.serveur.reseau, "nom_tailscale", return_value=""):
+            self.assertEqual(self.demander("GET", "/o/faux/", Host=self.PUBLIC)[0], 403)
 
     def test_page_et_liens(self):
         code, r, corps = self.demander("GET", "/o/faux/")

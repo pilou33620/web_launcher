@@ -269,7 +269,8 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 ```
 
 Tests : `python3 -m unittest discover tests` (un faux outil et un dépôt git local,
-sans réseau).
+sans réseau). `python3 tests/verif_acces_outils.py` : nom Tailscale et relais, pour
+tous les outils (une ligne par outil ; WEB_CAO, ANTENNA et 3D sont lancés exprès sur un port libre).
 
 ## Depuis n'importe où, sans application (Tailscale Funnel)
 
@@ -281,6 +282,8 @@ Tailscale Funnel + Caddy (mot de passe) devant le launcher, aucun port ouvert su
 - `https://<pi>.xxx.ts.net:8443/o/<id>/` : les outils (Funnel 8443 → Caddy 18081 → relais du
   launcher, `127.0.0.1:18089`). Sur la page ouverte en https, **Ouvrir ↗** et **Copier
   l'adresse** prennent ce chemin tout seuls ; sur le réseau local, rien ne change (`IP:port`).
+  WEB_CAO, WEB_ANTENNA et WEB_3D, lancés par WEB·SUITE, y sont aussi (`relais_sous_outils` dans
+  `outils.json`) : **Ouvrir ↗** de WEB·SUITE reste sous `/o/` quand la page y est.
 
 Pourquoi une adresse à part pour les outils : une page d'outil relayée sur la même adresse que
 le launcher pourrait appeler son API (créer un compte, piloter les terminaux...). Sur le port

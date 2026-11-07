@@ -1,6 +1,8 @@
 """Réseau : adresse du Raspberry Pi, ports, et le nom « launcher.local » (mDNS, via Avahi)."""
 
+import functools
 import ipaddress
+import json
 import os
 import shutil
 import socket
@@ -33,6 +35,18 @@ def ip_tailscale():
     finally:
         s.close()
     return ip if ipaddress.ip_address(ip) in ipaddress.ip_network("100.64.0.0/10") else None
+
+
+@functools.lru_cache(maxsize=1)
+def nom_tailscale():
+    """Le nom MagicDNS exact de CE poste (pilou.tailxxxx.ts.net), "" sans Tailscale."""
+    # shortcut: gardé jusqu'au redémarrage de l'outil, à revoir si le poste change de nom Tailscale
+    try:
+        r = subprocess.run(["tailscale", "status", "--json", "--peers=false"], stdin=subprocess.DEVNULL,
+                           capture_output=True, timeout=3)
+        return json.loads(r.stdout)["Self"]["DNSName"].lower().rstrip(".")
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, AttributeError):
+        return ""
 
 
 def nom_machine():

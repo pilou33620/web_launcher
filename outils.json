@@ -60,6 +60,7 @@
       "commande": ["{python}", "lanceur/web_suite.py", "--reseau", "--sans-navigateur", "--sans-maj", "--port", "{port}"],
       "apres_clonage": [["{python}", "lanceur/installer.py", "tous", "--sans-dependances"]],
       "sous_depots": ["WEB_CAO", "WEB_ANTENNA", "WEB_3D"],
+      "relais_sous_outils": {"web_cao": 8000, "web_antenna": 8732, "web_3d": 8139},
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 20
     },
@@ -74,6 +75,7 @@
       "dossiers": ["web_theme_H"],
       "port": 8791,
       "commande": ["{python}", "server.py", "--port", "{port}"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
     },
     {
