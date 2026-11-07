@@ -61,11 +61,10 @@ def _hote(h):
 
 
 def _id_du_referer(h):
-    """L'outil d'où part la requête, d'après le Referer (même site seulement), ou None."""
-    ref = urlparse(h.headers.get("Referer") or "")
-    if not ref.netloc or ref.netloc.lower() != _hote(h):
-        return None
-    m = DANS_PREFIXE.match(ref.path)
+    """L'outil d'où part la requête, d'après le chemin du Referer (/o/<id>/...), ou None.
+    Le nom d'hôte n'est pas comparé : derrière Funnel et Caddy, celui que voit le launcher varie,
+    et ce serveur ne sert que des outils (la session, cookie Strict, reste exigée)."""
+    m = DANS_PREFIXE.match(urlparse(h.headers.get("Referer") or "").path)
     return m.group(1) if m else None
 
 
@@ -81,7 +80,8 @@ def cible(h):
     if chemin.startswith(PREFIXE):
         return None
     id_ = _id_du_referer(h)
-    if id_ is None and (h.headers.get("Upgrade") or "").lower() == "websocket":
+    if id_ is None:
+        # sans Referer (WebSocket, fetch « no-referrer ») : le dernier outil ouvert dans ce navigateur
         biscuit = _cookies(h).get(COOKIE_OUTIL)
         id_ = biscuit.value if biscuit and re.fullmatch(ID, biscuit.value) else None
     return (id_, chemin) if id_ else None
@@ -138,7 +138,12 @@ def _biscuit(valeur):
 
 
 def origine_permise(h):
-    """Requête qui agit (envoi, WebSocket) : l'Origin, si le navigateur l'envoie, doit être le launcher."""
+    """Requête qui agit (envoi, WebSocket) : elle doit partir d'une page de cette adresse.
+    Sec-Fetch-Site est posé par le navigateur lui-même (une page ne peut pas le changer) ;
+    à défaut (vieux navigateur), l'Origin est comparée au nom d'hôte."""
+    site = (h.headers.get("Sec-Fetch-Site") or "").strip().lower()
+    if site:
+        return site in ("same-origin", "none")
     origine = h.headers.get("Origin")
     if origine is None:
         return True                                     # pas un envoi depuis une page web

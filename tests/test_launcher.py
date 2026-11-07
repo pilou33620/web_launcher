@@ -829,8 +829,10 @@ class Relais(unittest.TestCase):
         ref = "http://%s/o/faux/" % self.hote
         self.assertEqual(self.demander("GET", "/page", Referer=ref)[2], b"page:127.0.0.1:%d" % self.port_outil)
         self.assertEqual(self.demander("GET", "/page", Referer="http://%s/o/faux/sous/x" % self.hote)[0], 200)
-        self.assertEqual(self.demander("GET", "/page", Referer="http://autre.example/o/faux/")[0], 404)   # autre site
-        self.assertEqual(self.demander("GET", "/page")[0], 404)                                           # le launcher n'a pas /page
+        self.assertEqual(self.demander("GET", "/page", Referer="http://autre.example/o/faux/")[0], 200)   # chemin seul compte
+        self.assertEqual(self.demander("GET", "/page")[0], 404)                                           # aucun outil désigné
+        self.assertEqual(self.demander("GET", "/page", Cookie="launcher_session=%s; relais_outil=faux" % self.jeton)[0], 200)
+        self.assertEqual(self.demander("GET", "/page", connecte=False, Cookie="relais_outil=faux")[0], 401)
         self.assertEqual(self.demander("GET", "/api/inconnue")[0], 404)                                   # route du launcher
 
     def test_envoi_nettoye(self):
@@ -854,6 +856,13 @@ class Relais(unittest.TestCase):
             self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin=origine, **caddy)[0], 403, origine)
         self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin="http://" + self.hote)[0], 200)  # réseau local
         self.assertEqual(self.demander("GET", "/o/faux/page", Origin="https://evil.example")[0], 200)       # lecture : la session Strict suffit
+        # Sec-Fetch-Site (posé par le navigateur) prime, même si le nom public est mal transmis
+        mal = dict(caddy, X_Forwarded_Host="127.0.0.1:18081")
+        self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin="https://" + self.PUBLIC + ":8443",
+                                       Sec_Fetch_Site="same-origin", **mal)[0], 200)
+        for site in ("same-site", "cross-site"):
+            self.assertEqual(self.demander("POST", "/o/faux/echo", b"x", Origin="https://" + self.PUBLIC + ":8443",
+                                           Sec_Fetch_Site=site, **caddy)[0], 403, site)
 
     def test_outil_ne_touche_pas_au_launcher(self):
         self.assertEqual(self.demander("GET", "/o/faux/sw.js", Service_Worker="script")[0], 403)
@@ -868,7 +877,9 @@ class Relais(unittest.TestCase):
         # Caddy remplace Host par localhost : le Referer est comparé au nom public (X-Forwarded-Host)
         ref = "https://%s/o/faux/" % self.PUBLIC
         self.assertEqual(self.demander("GET", "/page", Referer=ref, Host="localhost", **caddy)[0], 200)
-        self.assertEqual(self.demander("GET", "/page", Referer="https://evil.example/o/faux/", Host="localhost", **caddy)[0], 404)
+        # nom public mal transmis par Caddy : le chemin du Referer suffit
+        self.assertEqual(self.demander("GET", "/page", Referer=ref, Host="localhost",
+                                       **dict(caddy, X_Forwarded_Host="127.0.0.1:18081"))[0], 200)
         # cookies marqués Secure en https
         r = self.demander("GET", "/o/faux/", Host="localhost", **caddy)[1]
         self.assertIn("Secure", r.getheader("Set-Cookie"))
