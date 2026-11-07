@@ -6,6 +6,8 @@ journaux/<id>.log. Son PID est gardé dans etat.local.json : si le launcher red�
 Un outil allumé au moment où le Raspberry Pi s'éteint est rallumé au démarrage suivant.
 """
 
+import http.client
+import json
 import os
 import re
 import signal
@@ -152,16 +154,34 @@ class Gestionnaire:
         self.heures_maj = float(conf.get("verification_maj_heures", 1) or 0)
         self.prochaine_verif = None         # heure de la prochaine vérification automatique
         self.lus = {}                       # id -> position déjà relayée du journal (_relayer_connexions)
+        self.annonces = {}                  # id du parent -> (quand, ports de ses sous-outils)
         os.makedirs(config.JOURNAUX, exist_ok=True)
 
     def port_sous_outil(self, id_):
-        """Outil lancé par un autre (WEB_CAO par WEB·SUITE) : pas de carte, mais joignable par le relais."""
-        # shortcut: port du catalogue, le relais ne suit pas un outil qui a dû en prendre un autre (port occupé)
+        """Outil lancé par un autre (WEB_CAO par WEB·SUITE) : pas de carte, mais joignable par le relais.
+        Son parent dit sur quel port il tourne : il en prend un autre si le sien est occupé."""
         for o in self.outils:
-            port = o.conf.get("relais_sous_outils", {}).get(id_)
-            if port:
-                return int(port)
+            ports = o.conf.get("relais_sous_outils", {})
+            if id_ in ports:
+                return self._ports_annonces(o).get(id_) or int(ports[id_])
         return None
+
+    def _ports_annonces(self, o):
+        """{id: port} d'après /api/etat du parent. Gardé 5 s : chaque requête relayée passe ici, et
+        cet état lance git status."""
+        quand, ports = self.annonces.get(o.id, (0, {}))
+        if time.monotonic() - quand > 5:
+            ports = {}
+            c = http.client.HTTPConnection("127.0.0.1", o.port, timeout=5)
+            try:
+                c.request("GET", "/api/etat")
+                ports = {s["id"]: int(s["port"]) for s in json.loads(c.getresponse().read())["outils"] if s.get("port")}
+            except (OSError, http.client.HTTPException, ValueError, KeyError, TypeError):
+                pass                                    # parent arrêté : le port du catalogue
+            finally:
+                c.close()
+            self.annonces[o.id] = (time.monotonic(), ports)
+        return ports
 
     # -- état persistant ----------------------------------------------
 

@@ -806,9 +806,39 @@ class Relais(unittest.TestCase):
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outils.json")) as f:
             conf = json.load(f)
         conf["dossier_outils"] = self.tmp
+        for o in conf["outils"]:
+            o["port"] = port_libre()                    # le vrai WEB·SUITE tourne peut-être sur ce poste
         g = Gestionnaire(conf, ecrire=lambda t: None)
         self.assertEqual([g.port_sous_outil(i) for i in ("web_cao", "web_antenna", "web_3d", "web_suite", "x")],
-                         [8000, 8732, 8139, None, None])
+                         [8000, 8732, 8139, None, None])    # parent arrêté : les ports du catalogue
+
+    def test_sous_outil_sur_un_autre_port(self):
+        import http.server
+        import threading
+        vus = []
+
+        class Parent(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                vus.append(self.path)
+                corps = json.dumps({"outils": [{"id": "web_cao", "port": 8001}, {"id": "web_3d", "port": None}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(corps)))
+                self.end_headers()
+                self.wfile.write(corps)
+
+            def log_message(self, *a):
+                pass
+
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Parent)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        g = Gestionnaire({"dossier_outils": self.tmp, "outils": [{
+            "id": "web_suite", "port": httpd.server_address[1], "dossiers": ["x"], "commande": ["x"],
+            "relais_sous_outils": {"web_cao": 8000, "web_3d": 8139}}]}, ecrire=lambda t: None)
+        self.assertEqual(g.port_sous_outil("web_cao"), 8001)    # le port annoncé, pas celui du catalogue
+        self.assertEqual(g.port_sous_outil("web_3d"), 8139)     # arrêté : le catalogue, le relais dira 502
+        self.assertEqual(vus, ["/api/etat"])                    # gardé 5 s : pas une demande par requête relayée
 
     def test_nom_tailscale_du_poste(self):
         with mock.patch.object(self.serveur.reseau, "nom_tailscale", return_value=self.PUBLIC):
