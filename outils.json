@@ -136,6 +136,20 @@
       "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_rugby",
+      "nom": "Rugby",
+      "suffixe": "Top 14",
+      "description": "Simulateur autonome du Top 14 2026-2027, en hexagones",
+      "accent": "#16a34a",
+      "icone": "rugby",
+      "depot": "https://github.com/pilou33620/web_rugby.git",
+      "dossiers": ["web_rugby"],
+      "port": 8796,
+      "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }

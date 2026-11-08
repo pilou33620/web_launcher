@@ -15,6 +15,7 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | WebSuite | [web_suite](https://github.com/pilou33620/web_suite) | 8100 | `~/Documents/web_suite` (ou `WEB_TOOLS`, `WEB_SUITE`) |
 | GridMaster | [web_power](https://github.com/pilou33620/web_power) | 8794 | `~/Documents/web_power` |
 | Héliosphère | [web_space](https://github.com/pilou33620/web_space) | 8795 | `~/Documents/web_space` |
+| Rugby Top 14 | [web_rugby](https://github.com/pilou33620/web_rugby) | 8796 | `~/Documents/web_rugby` |
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
 
 Python 3.8+ et git, bibliothèque standard uniquement : rien à installer avec pip.
