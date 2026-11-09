@@ -150,6 +150,19 @@
       "commande": ["{python}", "serveur.py", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_fire",
+      "nom": "Web",
+      "suffixe": "Fire",
+      "description": "Feux de forêt en hexagones : météo, propagation, moyens aériens",
+      "accent": "#dc2626",
+      "icone": "flamme",
+      "depot": "https://github.com/pilou33620/web_fire.git",
+      "dossiers": ["web_fire"],
+      "port": 8797,
+      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser"],
+      "delai_arret": 15
     }
   ]
 }

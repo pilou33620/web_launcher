@@ -67,6 +67,13 @@
     <h3>Outils</h3>
     <p class="aide">Port de chaque outil, et outils affichés sur la page. Un outil doit être arrêté pour changer ses réglages.</p>
     <div id="reglages-outils"></div>
+    <form class="formulaire" id="ajout-outil">
+      <strong>Ajouter une app</strong>
+      <input name="depot" placeholder="https://github.com/pilou33620/mon_app" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <input name="options" placeholder="Options (facultatif), ex. --lan --no-browser" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="bouton" type="submit">Ajouter</button>
+    </form>
+    <p class="aide">Le launcher télécharge l'app, prend serveur.py ou server.py, lui donne un port libre (8790-8899) et la lance avec « --port ». Seulement les dépôts de pilou33620.</p>
 
     <h3>Comptes</h3>
     <p class="aide">Chaque personne peut avoir son identifiant et son mot de passe. Tous les comptes ont les mêmes droits.</p>

@@ -411,6 +411,18 @@ class Lanceur(SimpleHTTPRequestHandler):
                 self.visites.dire("%s (%s)" % (self.ip_client(), self.login or "sans compte"),
                                   "%s %s" % (morceaux[3], morceaux[2]))
                 return self._json({"ok": True})
+            if morceaux == ["api", "ajouter_outil"]:
+                try:
+                    d = json.loads(corps.decode("utf-8") or "{}")
+                    url, options = d.get("depot", ""), d.get("options", "")
+                except (ValueError, AttributeError):
+                    return self._json({"erreur": "demande illisible"}, 400)
+                try:
+                    oid = g.ajouter(url, options)
+                except ValueError as exc:
+                    return self._json({"erreur": str(exc)}, 400)
+                self.visites.dire("%s (%s)" % (self.ip_client(), self.login or "sans compte"), "ajout %s" % oid)
+                return self._json({"ok": True, "id": oid})
             if morceaux == ["api", "verifier_tout"]:
                 for o in g.outils:
                     if o.installe:

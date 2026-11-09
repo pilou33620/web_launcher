@@ -16,7 +16,12 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | GridMaster | [web_power](https://github.com/pilou33620/web_power) | 8794 | `~/Documents/web_power` |
 | Héliosphère | [web_space](https://github.com/pilou33620/web_space) | 8795 | `~/Documents/web_space` |
 | Rugby Top 14 | [web_rugby](https://github.com/pilou33620/web_rugby) | 8796 | `~/Documents/web_rugby` |
+| WebFire | [web_fire](https://github.com/pilou33620/web_fire) | 8797 | `~/Documents/web_fire` |
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
+
+Une autre app d'un dépôt `https://github.com/pilou33620/…` s'ajoute depuis **Réglages › Ajouter une app** :
+le launcher la télécharge, prend `serveur.py` ou `server.py`, lui donne un port libre (8790-8899) et la lance
+avec `--port <port>` plus les options saisies. L'entrée est gardée dans `config.local.json`.
 
 Python 3.8+ et git, bibliothèque standard uniquement : rien à installer avec pip.
 

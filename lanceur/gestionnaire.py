@@ -10,6 +10,7 @@ import http.client
 import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -24,6 +25,9 @@ DELAI_DEMARRAGE = 90                    # s pour que le port réponde
 RELANCES_MAX = 3                        # relances automatiques après un plantage...
 FENETRE_RELANCES = 600                  # ...dans cette fenêtre (s)
 DUREE_CODE = 600                        # un code d'appairage WEB·SUITE vit 10 min
+SCRIPTS_PROBABLES = ("serveur.py", "server.py")      # point d'entrée d'une app ajoutée, dans cet ordre
+PLAGE_PORTS = range(8790, 8900)         # ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
+DEPOTS_PERMIS = "https://github.com/pilou33620/"     # seules apps installables depuis la page
 CONSOLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console.py")
 
 
@@ -472,6 +476,8 @@ class Gestionnaire:
         o.phase, o.message = "installation", "Téléchargement depuis GitHub…"
         self._noter(o, "installation dans %s" % cible)
         depot.cloner(o.conf["depot"], cible)
+        if o.conf.get("ajoute"):
+            self._choisir_script(o)
         if o.conf.get("venv"):
             o.message = "Installation des bibliothèques Python…"
             self._installer_venv(o)
@@ -689,6 +695,63 @@ class Gestionnaire:
                 outils = [x for x in self.outils if x is not o]
             self.outils, self.par_id = outils, {x.id: x for x in outils}
             self.sauver()
+
+    # -- apps ajoutées depuis la page ------------------------------
+
+    def ajouter(self, url, options="", fichier=None):
+        """Ajoute au launcher une app d'un dépôt de DEPOTS_PERMIS (gardée dans config.local.json)
+        et lance son installation si son dossier manque. Rend l'id. Lève ValueError."""
+        url = str(url).strip()
+        m = re.fullmatch(re.escape(DEPOTS_PERMIS) + r"([A-Za-z0-9_-][A-Za-z0-9_.-]*?)(?:\.git)?/?", url)
+        if not m:
+            raise ValueError("Dépôt : une adresse %s<nom>." % DEPOTS_PERMIS)
+        oid = m.group(1)
+        try:
+            options = shlex.split(str(options or ""))
+        except ValueError as exc:
+            raise ValueError("Options illisibles : %s." % exc)
+        if any(not re.fullmatch(r"[A-Za-z0-9_=.,:/@+-]+", x) for x in options):
+            raise ValueError("Options : lettres, chiffres et - _ = . , : / @ + seulement.")
+        if "--port" in options:
+            raise ValueError("Options : --port est ajouté par le launcher.")
+        with self.verrou_etat:
+            connus = [x.conf for x in self.outils] + self.masques
+            if any(c["id"].lower() == oid.lower() for c in connus):
+                raise ValueError("%s est déjà dans le launcher." % oid)
+            pris = {int(c["port"]) for c in connus} | {self.conf.get("port"), self.conf.get("port_secours")}
+            port = next((p for p in PLAGE_PORTS if p not in pris and not reseau.port_ouvert(p)), None)
+            if port is None:
+                raise ValueError("Aucun port libre entre %d et %d." % (PLAGE_PORTS[0], PLAGE_PORTS[-1]))
+            conf = {"id": oid, "nom": oid, "suffixe": "", "description": "App ajoutée depuis le launcher",
+                    "depot": DEPOTS_PERMIS + oid + ".git", "dossiers": [oid], "port": port,
+                    "commande": ["{python}", SCRIPTS_PROBABLES[0], *options, "--port", "{port}"],
+                    "ajoute": True}
+            o = Outil(conf, self.conf["dossier_outils"])
+            if os.path.isdir(o.dossier):
+                try:                            # dossier déjà là (cloné à la main) : rien à télécharger
+                    self._choisir_script(o)
+                except RuntimeError as exc:
+                    raise ValueError(str(exc))
+            config.regler_outil(oid, fichier or config.LOCAL, **{k: v for k, v in conf.items() if k != "id"})
+            self.outils.append(o)
+            self.par_id[oid] = o
+            self.ordre.append(oid)
+        self._noter(o, "ajouté depuis la page (%s, port %d)" % (conf["depot"], port))
+        self.sauver()
+        if not o.installe:
+            self.lancer_action(oid, "installer")
+        return oid
+
+    def _choisir_script(self, o, fichier=None):
+        """Point d'entrée de l'app : le premier de SCRIPTS_PROBABLES présent dans son dossier. Lève RuntimeError."""
+        script = next((s for s in SCRIPTS_PROBABLES if os.path.isfile(os.path.join(o.dossier, s))), None)
+        if script is None:
+            raise RuntimeError("Ni %s dans %s : ajouter l'app à la main dans config.local.json."
+                             % (" ni ".join(SCRIPTS_PROBABLES), o.dossier))
+        if script != o.conf["commande"][1]:
+            o.conf["commande"][1] = script
+            if self.par_id.get(o.id) is o:
+                config.regler_outil(o.id, fichier or config.LOCAL, commande=o.conf["commande"])
 
     def regler_maj_auto(self, oid, valeur):
         o = self.par_id[oid]

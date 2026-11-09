@@ -463,6 +463,34 @@ class Configuration(unittest.TestCase):
         with self.assertRaises(KeyError):
             g.regler("z", port=9000, fichier=loc)
 
+    def test_ajouter_app(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        loc = os.path.join(tmp, "l.json")
+        for nom in ("ETAT", "JOURNAUX"):        # ne pas écrire dans l'état ni les journaux réels du Pi
+            self.addCleanup(setattr, config, nom, getattr(config, nom))
+        config.ETAT, config.JOURNAUX = os.path.join(tmp, "etat.json"), os.path.join(tmp, "journaux")
+        os.makedirs(os.path.join(tmp, "mon_app"))
+        open(os.path.join(tmp, "mon_app", "server.py"), "w").close()
+        os.makedirs(os.path.join(tmp, "vide"))
+        g = Gestionnaire({"dossier_outils": tmp, "port": 80, "port_secours": 8090,
+                          "outils": [{"id": "a", "nom": "A", "port": 8790, "depot": "x"}]}, ecrire=lambda t: None)
+        for url, opts in (("https://github.com/autre/mon_app", ""), ("https://github.com/pilou33620/../x", ""),
+                          ("https://github.com/pilou33620/mon_app", "; rm -rf ~"),
+                          ("https://github.com/pilou33620/mon_app", "--port 9"),
+                          ("https://github.com/pilou33620/A", ""), ("https://github.com/pilou33620/vide", "")):
+            with self.assertRaises(ValueError, msg=url + opts):
+                g.ajouter(url, opts, fichier=loc)
+        self.assertEqual(g.ajouter("https://github.com/pilou33620/mon_app.git", "--lan", fichier=loc), "mon_app")
+        o = g.par_id["mon_app"]
+        self.assertTrue(o.installe)
+        self.assertEqual(o.conf["commande"], ["{python}", "server.py", "--lan", "--port", "{port}"])
+        self.assertTrue(8790 < o.port < 8900)
+        conf = config.charger(os.devnull + ".absent", loc)
+        self.assertEqual([(c["id"], c["port"], c["commande"][1]) for c in conf["outils"]],
+                         [("mon_app", o.port, "server.py")])
+        self.assertNotIn("vide", g.par_id)
+
     def test_catalogue_livre(self):
         conf = config.charger(config.CATALOGUE, os.devnull + ".absent")
         ports = [o["port"] for o in conf["outils"]]

@@ -11,6 +11,7 @@ const ICONES = {
   eclair: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5 4.5 13.5H11l-1 8 8.5-11H12z"/></svg>',
   planete: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5.5"/><ellipse cx="12" cy="12" rx="10.5" ry="3" transform="rotate(-25 12 12)"/></svg>',
   rugby: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="5.5" transform="rotate(-35 12 12)"/><path d="M8.5 15.5l7-7M10 11l1.5 1.5M12 9.5l1.5 1.5M11.5 13l1.5 1.5"/></svg>',
+  flamme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5c-4 0-7-2.8-7-6.6 0-3.4 2.4-5.4 3.6-8 .4 2 1.4 3 2.4 3.4C11 6.8 12.6 4 15 2.5c-.4 3 1.2 4.8 2.6 6.8 1 1.5 1.4 3 1.4 4.6 0 4.6-3 7.6-7 7.6z"/><path d="M12 21.5c-1.7 0-3-1.2-3-2.9 0-1.8 1.6-2.8 2.3-4.3.9 1 3.7 2.4 3.7 4.5 0 1.6-1.3 2.7-3 2.7z"/></svg>',
   defaut: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>',
 };
 
@@ -451,6 +452,10 @@ $("#reglages").addEventListener("submit", async (ev) => {
       await poster("/api/comptes/mot_de_passe", { login: f.dataset.mdp, mot_de_passe: f.mdp.value });
       mdpOuvert = null;
       await apresReglage(`Mot de passe de ${f.dataset.mdp} changé (ses autres appareils sont déconnectés)`);
+    } else if (f.id === "ajout-outil") {
+      const d = await poster("/api/ajouter_outil", { depot: f.depot.value, options: f.options.value });
+      f.reset();
+      await apresReglage(`${d.id} ajouté : installation en cours`);
     } else if (f.id === "ajout-compte") {
       if (f.mdp.value !== f.mdp2.value) throw new Error("Les deux mots de passe diffèrent.");
       const premier = !etat.launcher.compte;
