@@ -17,6 +17,7 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | Héliosphère | [web_space](https://github.com/pilou33620/web_space) | 8795 | `~/Documents/web_space` |
 | Rugby Top 14 | [web_rugby](https://github.com/pilou33620/web_rugby) | 8796 | `~/Documents/web_rugby` |
 | WebFire | [web_fire](https://github.com/pilou33620/web_fire) | 8797 | `~/Documents/web_fire` |
+| Manuels | [web_manuel](https://github.com/pilou33620/web_manuel) | 8798 | `~/Documents/web_manuel` |
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
 
 Une autre app d'un dépôt `https://github.com/pilou33620/…` s'ajoute depuis **Réglages › Ajouter une app** :

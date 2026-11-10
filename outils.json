@@ -163,6 +163,20 @@
       "port": 8797,
       "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser"],
       "delai_arret": 15
+    },
+    {
+      "id": "web_manuel",
+      "nom": "Manuels",
+      "suffixe": "",
+      "description": "Manuels interactifs : voyants, guides pas à pas, entretien",
+      "accent": "#b45309",
+      "icone": "livre",
+      "depot": "https://github.com/pilou33620/web_manuel.git",
+      "dossiers": ["web_manuel"],
+      "port": 8798,
+      "commande": ["{python}", "serveur.py", "--lan", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 10
     }
   ]
 }
