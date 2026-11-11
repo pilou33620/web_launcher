@@ -177,6 +177,20 @@
       "commande": ["{python}", "serveur.py", "--lan", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 10
+    },
+    {
+      "id": "web_ferme",
+      "nom": "Ferme",
+      "suffixe": "Val Vert",
+      "description": "Jeu de gestion d'une ferme : cultures, bêtes, saisons, atelier",
+      "accent": "#65a30d",
+      "icone": "ferme",
+      "depot": "https://github.com/pilou33620/web_ferme.git",
+      "dossiers": ["web_ferme"],
+      "port": 8799,
+      "commande": ["{python}", "server.py", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }
