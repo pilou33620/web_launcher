@@ -162,6 +162,7 @@
       "dossiers": ["web_fire"],
       "port": 8797,
       "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
     },
     {
