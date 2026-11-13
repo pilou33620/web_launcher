@@ -339,6 +339,8 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json(donnees)
         if url.path == "/api/andy/pesees":
             return self._json({"pesees": andy.lire()})
+        if url.path == "/api/andy/evenements":
+            return self._json({"evenements": andy.lire_evenements()})
         if url.path.startswith("/api/"):
             return self._json({"erreur": "route inconnue"}, 404)
         if url.path not in ("/", "/index.html", "/console.html", "/andy.html") and not url.path.startswith(("/css/", "/js/", "/icones/")):
@@ -382,8 +384,8 @@ class Lanceur(SimpleHTTPRequestHandler):
                 except RuntimeError as exc:
                     return self._json({"erreur": str(exc)}, 409)
                 return self._json({"ok": True})
-            if morceaux[:3] == ["api", "andy", "pesees"] and len(morceaux) in (3, 4):
-                return self._pesee("/".join(morceaux[3:]) or "ajouter", corps)
+            if morceaux[:2] == ["api", "andy"] and morceaux[2:3] in (["pesees"], ["evenements"]) and len(morceaux) in (3, 4):
+                return self._pesee("/".join(morceaux[3:]) or "ajouter", corps, morceaux[2])
             if morceaux[:2] == ["api", "claude"] and morceaux[2:] in (["activer"], ["redemarrer"], ["eteindre"], ["allumer"], ["confiance"]):
                 return self._claude(morceaux[2], corps)
             if morceaux[:2] == ["api", "comptes"] and len(morceaux) == 3:
@@ -514,8 +516,8 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": "route inconnue"}, 404)
         return self._json({"erreur": erreur}, 400) if erreur else self._json({"ok": True})
 
-    def _pesee(self, action, corps):
-        """Suivi d'Andy : ajouter ou supprimer une pesée."""
+    def _pesee(self, action, corps, genre="pesees"):
+        """Suivi d'Andy : ajouter ou supprimer une pesée ou un évènement."""
         try:
             d = json.loads(corps.decode("utf-8") or "{}")
             if not isinstance(d, dict):
@@ -524,12 +526,15 @@ class Lanceur(SimpleHTTPRequestHandler):
             return self._json({"erreur": "demande illisible"}, 400)
         if action == "ajouter":
             try:
+                if genre == "evenements":
+                    return self._json({"ok": True, "evenement": andy.ajouter_evenement(
+                        d.get("date"), d.get("type"), d.get("titre"), d.get("note", ""))})
                 return self._json({"ok": True, "pesee": andy.ajouter(d.get("date"), d.get("poids"))})
             except ValueError as exc:
                 return self._json({"erreur": str(exc)}, 400)
         if action == "supprimer":
             if not andy.supprimer(str(d.get("id", ""))[:40]):
-                return self._json({"erreur": "pesée introuvable"}, 404)
+                return self._json({"erreur": "entrée introuvable"}, 404)
             return self._json({"ok": True})
         return self._json({"erreur": "route inconnue"}, 404)
 

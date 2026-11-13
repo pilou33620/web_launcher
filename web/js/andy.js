@@ -9,6 +9,11 @@
     return { date: p.date, type: "poids", titre: "Pesée", resume: String(p.poids).replace(".", ",") + " kg", poids: Number(p.poids),
       perso: true, id: p.id, details: ["Pesée ajoutée depuis cette page."], source: "Saisie manuelle" };
   }
+  var evenements = [];    // les évènements ajoutés depuis la page (médicament, visite…) : /api/andy/evenements
+  function evenementEvt(e) {
+    return { date: e.date, type: e.type, titre: e.titre, resume: e.note || "", perso: true, id: e.id,
+      details: [], source: "Saisie manuelle" };
+  }
   async function api(chemin, corps) {
     var r = await fetch("/api/andy/" + chemin, corps === undefined ? { cache: "no-store" } :
       { method: "POST", headers: { "X-Launcher": "1", "Content-Type": "application/json" }, body: JSON.stringify(corps) });
@@ -18,8 +23,9 @@
     return d;
   }
   async function chargerPesees() { pesees = (await api("pesees")).pesees; }
+  async function chargerEvenements() { evenements = (await api("evenements")).evenements; }
   function assembler() {
-    DATA = BASE.concat(pesees.map(peseeEvt));
+    DATA = BASE.concat(pesees.map(peseeEvt), evenements.map(evenementEvt));
     DATA.forEach(function (e, i) { e._i = i; indexer(e); });
   }
   var NAISSANCE = new Date(2025, 10, 30, 12);
@@ -29,6 +35,7 @@
     vermifuge:       { label: "Vermifuge",              c: "--c-vermifuge" },
     antiparasitaire: { label: "Anti-tiques et puces",   c: "--c-antiparasitaire" },
     consultation:    { label: "Consultation",           c: "--c-consultation" },
+    medicament:      { label: "Médicament",             c: "--c-medicament" },
     soin:            { label: "Soin et intervention",   c: "--c-soin" },
     osteo:           { label: "Ostéopathie",            c: "--c-osteo" },
     poids:           { label: "Pesée",                  c: "--c-poids" },
@@ -140,7 +147,7 @@
     if (e.lieu) h += "<dt>Lieu</dt><dd>" + hl(e.lieu) + "</dd>";
     if (e.cout) h += "<dt>Coût</dt><dd>" + hl(e.cout) + "</dd>";
     if (e.source) h += "<dt>Source</dt><dd>" + hl(e.source) + "</dd>";
-    h += "</dl>" + (e.perso ? '<button type="button" class="bouton suppr" data-id="' + esc(e.id) + '">Supprimer cette pesée</button>' : "") + "</div></li>";
+    h += "</dl>" + (e.perso ? '<button type="button" class="bouton suppr" data-id="' + esc(e.id) + '">Supprimer</button>' : "") + "</div></li>";
     return h;
   }
 
@@ -264,10 +271,10 @@
     if (ev.target.closest("a")) return;
     var s = ev.target.closest(".suppr");
     if (s) {
-      if (!confirm("Supprimer cette pesée ?")) return;
+      if (!confirm("Supprimer cette entrée ?")) return;
       try {
-        await api("pesees/supprimer", { id: s.dataset.id });
-        await chargerPesees();
+        await api("pesees/supprimer", { id: s.dataset.id });     // l'id suffit : le serveur cherche aussi dans les évènements
+        await Promise.all([chargerPesees(), chargerEvenements()]);
         etat.ouverts.clear(); assembler(); panneau(); rendre();
       } catch (x) { document.getElementById("pesee-msg").textContent = x.message; }
       return;
@@ -310,9 +317,26 @@
     } catch (x) { msg.textContent = x.message; }
   });
 
+  var fe = document.getElementById("evenement"), msgE = document.getElementById("evenement-msg");
+  Object.keys(TYPES).forEach(function (k) {
+    if (k === "naissance" || k === "poids" || k === "delivrance" || k === "document") return;   // non saisissables
+    fe.elements.type.add(new Option(TYPES[k].label, k));
+  });
+  fe.elements.date.min = "2025-11-30"; fe.elements.date.value = jourLocal();
+  fe.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    try {
+      var e = (await api("evenements", { date: fe.elements.date.value, type: fe.elements.type.value,
+        titre: fe.elements.titre.value, note: fe.elements.note.value })).evenement;
+      await chargerEvenements();
+      msgE.textContent = "Évènement du " + fmt(e.date) + " ajouté.";
+      fe.elements.titre.value = ""; fe.elements.note.value = ""; assembler(); panneau(); rendre();
+    } catch (x) { msgE.textContent = x.message; }
+  });
+
   try {
     BASE = await (await fetch("/api/andy/donnees", { cache: "no-store" })).json();
-    await chargerPesees();
+    await Promise.all([chargerPesees(), chargerEvenements()]);
   } catch (x) { document.getElementById("frise").textContent = "Chargement impossible : " + x.message; return; }
   assembler();
   panneau();

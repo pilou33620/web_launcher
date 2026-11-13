@@ -691,6 +691,25 @@ class Andy(unittest.TestCase):
         self.assertEqual(json.loads(self.appeler("/api/andy/pesees")[1])["pesees"], [])
         self.assertEqual(self.appeler("/api/andy/pesees/autre", {})[0], 404)
 
+    def test_evenements(self):
+        auj = datetime.date(2026, 11, 5)
+        for args in [("2026-01-01", "inconnu", "x"), ("2026-01-01", "medicament", "  "), ("2026-01-01", "medicament", "x", "n" * 501),
+                     ("2025-01-01", "medicament", "x"), ("2029-01-01", "rdv", "x"), ("pas une date", "rdv", "x")]:
+            with self.assertRaises(ValueError):
+                andy.ajouter_evenement(*args, aujourdhui=auj)
+        m = andy.ajouter_evenement("2026-11-01", "medicament", " Nexgard ", "1 comprimé", auj)
+        v = andy.ajouter_evenement("2026-12-01", "rdv", "Visite véto", aujourdhui=auj)       # à venir : accepté
+        andy.ajouter("2026-11-02", 14, auj)
+        self.assertEqual([e["titre"] for e in andy.lire_evenements()], ["Nexgard", "Visite véto"])
+        self.assertEqual(len(andy.lire()), 1)                                              # les pesées ne sont pas écrasées
+        self.assertTrue(andy.supprimer(m["id"]))
+        self.assertEqual([e["id"] for e in andy.lire_evenements()], [v["id"]])
+        code, corps = self.appeler("/api/andy/evenements", {"date": "2026-01-01", "type": "soin", "titre": "Détartrage"})
+        self.assertEqual(code, 200)
+        self.assertEqual(self.appeler("/api/andy/evenements", {"date": "2026-01-01", "type": "x", "titre": "a"})[0], 400)
+        self.assertEqual(len(json.loads(self.appeler("/api/andy/evenements")[1])["evenements"]), 2)
+        self.assertEqual(self.appeler("/api/andy/evenements/supprimer", {"id": json.loads(corps)["evenement"]["id"]})[0], 200)
+
     def test_acces_reserve_aux_comptes(self):
         self.assertEqual(self.appeler("/andy.html")[0], 200)
         self.assertEqual(self.appeler("/js/andy_donnees.json")[0], 404)     # plus dans web/ (dépôt public)

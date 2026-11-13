@@ -49,6 +49,18 @@
     </section>
 
     <section class="bloc">
+      <h2>Ajouter un évènement</h2>
+      <form class="pesee" id="evenement" autocomplete="off">
+        <label>Date<input name="date" type="date" required></label>
+        <label>Type<select name="type" required></select></label>
+        <label class="large">Titre<input name="titre" type="text" maxlength="100" placeholder="Ex. Nexgard, visite du Dr Martin" required></label>
+        <label class="large">Note (facultatif)<input name="note" type="text" maxlength="500"></label>
+        <button class="bouton" type="submit">Ajouter</button>
+        <p id="evenement-msg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="bloc">
       <h2>À venir</h2>
       <ul class="liste-simple" id="avenir"></ul>
     </section>

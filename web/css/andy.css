@@ -17,6 +17,7 @@
   --c-antiparasitaire: #e5832a;
   --c-consultation: #d6455d;
   --c-soin: #8e44ad;
+  --c-medicament: #d9822b;
   --c-osteo: #0e9aa7;
   --c-document: #7a8190;
   --c-delivrance: #a58a5b;
@@ -42,6 +43,7 @@
     --c-vermifuge: #4cbf8a;
     --c-consultation: #ee6a80;
     --c-soin: #b36fd0;
+    --c-medicament: #f0a050;
     --c-osteo: #2cb8c5;
     --c-document: #98a0b0;
     --c-rdv: #9fb0ff;
@@ -50,7 +52,7 @@
 :root[data-theme="sombre"] {
   --papier: #14171e; --carte: #1d212b; --encre: #e8ebf2; --encre-douce: #9aa3b5; --trait: #343a48;
   --bleu: #9fb0ff; --orange: #f0954a; --surligneur: #dfe34a; --surligneur-texte: #14171e; --focus: #9fb0ff;
-  --c-vaccin: #5b92f0; --c-vermifuge: #4cbf8a; --c-consultation: #ee6a80; --c-soin: #b36fd0;
+  --c-vaccin: #5b92f0; --c-vermifuge: #4cbf8a; --c-consultation: #ee6a80; --c-soin: #b36fd0; --c-medicament: #f0a050;
   --c-osteo: #2cb8c5; --c-document: #98a0b0; --c-rdv: #9fb0ff;
 }
 
@@ -106,7 +108,10 @@ button, input { font: inherit; color: inherit; }
 .pesee input[name="kg"] { width: 6rem; }
 .pesee input:focus { border-color: var(--bleu); outline: none; }
 .pesee .bouton { min-height: 40px; background: var(--bleu); color: var(--carte); border-color: var(--bleu); font-weight: 700; }
-#pesee-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; font-size: .85rem; color: var(--encre-douce); }
+.pesee select { min-height: 40px; padding: 6px 8px; background: var(--papier); border: 2px solid var(--trait); border-radius: 8px; width: 12rem; }
+.pesee .large { flex-basis: 100%; }
+.pesee .large input { width: 100%; box-sizing: border-box; }
+#pesee-msg, #evenement-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; font-size: .85rem; color: var(--encre-douce); }
 .suppr { margin-top: 10px; }
 
 /* ===== À venir / contacts ===== */
