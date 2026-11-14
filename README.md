@@ -179,7 +179,10 @@ restent sur le Pi, jamais touchés par les mises à jour.
 
 **web_suite** : c'est lui-même un lanceur pour WEB_CAO, WEB_ANTENNA et WEB_3D.
 
-- *Installer* clone web_suite puis lance son installateur (`lanceur/installer.py tous`),
+- web_suite est en Rust : le launcher le lance par `demarrer_WEB_SUITE.sh`, qui télécharge ses
+  exécutables depuis GitHub au premier démarrage et après chaque mise à jour (Pi en 64 bits ;
+  en 32 bits, il faut `cargo` sur le Pi pour les compiler).
+- *Installer* clone web_suite puis lance son installateur (`bin/installer tous`),
   qui télécharge les trois outils dans le dossier de web_suite.
 - *Démarrer* lance son lanceur en mode réseau, port 8100. WEB_CAO, WEB_3D et WEB_ANTENNA se
   lancent ensuite depuis la page de WEB·SUITE (bouton *Ouvrir ↗*).
