@@ -26,6 +26,8 @@ RELANCES_MAX = 3                        # relances automatiques après un planta
 FENETRE_RELANCES = 600                  # ...dans cette fenêtre (s)
 DUREE_CODE = 600                        # un code d'appairage WEB·SUITE vit 10 min
 SCRIPTS_PROBABLES = ("serveur.py", "server.py")      # point d'entrée d'une app ajoutée, dans cet ordre
+LANCEUR_RUST = "lancer.sh"              # point d'entrée d'un web tool passé de Python à Rust
+BINAIRES_RUST = ["sh", "-c", ". ./binaires.sh && obtenir_binaires"]  # compile (cargo) ou télécharge ses exécutables
 PLAGE_PORTS = range(8790, 8900)         # ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
 DEPOTS_PERMIS = "https://github.com/pilou33620/"     # seules apps installables depuis la page
 CONSOLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console.py")
@@ -105,8 +107,22 @@ class Outil:
         return os.path.join(self.racine_outils, noms[0])
 
     @property
-    def script(self):
+    def rust(self):
+        """Web tool porté en Rust : son script Python a disparu et lancer.sh l'a remplacé.
+        Un dossier resté en Python (pas encore mis à jour) garde sa commande Python."""
         cmd = self.conf["commande"]
+        return (cmd[0] == "{python}" and len(cmd) > 1
+                and not os.path.isfile(os.path.join(self.dossier, cmd[1]))
+                and os.path.isfile(os.path.join(self.dossier, LANCEUR_RUST)))
+
+    def commande(self):
+        """La commande du catalogue ; pour un outil en Rust, « sh lancer.sh » avec les mêmes options."""
+        cmd = self.conf["commande"]
+        return ["sh", LANCEUR_RUST] + cmd[2:] if self.rust else cmd
+
+    @property
+    def script(self):
+        cmd = self.commande()
         return cmd[1] if len(cmd) > 1 else cmd[0]
 
     @property
@@ -299,7 +315,7 @@ class Gestionnaire:
             if self._adopter_par_port(o):
                 return
             raise RuntimeError("Le port %d est déjà pris par un autre programme." % o.port)
-        cmd = o.remplir(o.conf["commande"])
+        cmd = o.remplir(o.commande())
         self._ouvrir_journal(o, rotation=True).close()
         self._noter(o, "démarrage : " + " ".join(cmd))
         if o.avec_terminal:
@@ -445,6 +461,7 @@ class Gestionnaire:
                 if "requirements.txt" in changes and o.conf.get("venv") and d == o.dossier:
                     o.message = "Mise à jour des bibliothèques Python…"
                     self._installer_venv(o)
+            self._binaires_rust(o)
         finally:
             o.phase = "arrete"
             o.oublier_version()
@@ -467,6 +484,13 @@ class Gestionnaire:
             self._executer(o, [os.path.join(venv, "bin", "python"), "-m", "pip", "install", "-q",
                                "-r", "requirements.txt"], o.dossier)
 
+    def _binaires_rust(self, o):
+        """Outil en Rust : ses exécutables sont pris ici (installation, mise à jour) plutôt qu'au
+        démarrage, où une compilation sur le Pi dépasserait DELAI_DEMARRAGE."""
+        if o.rust and os.path.isfile(os.path.join(o.dossier, "binaires.sh")):
+            o.message = "Compilation ou téléchargement de l'exécutable (Rust)…"
+            self._executer(o, BINAIRES_RUST, o.dossier, delai=3600)
+
     def _a_installer(self, o):
         if o.installe:
             raise RuntimeError("Déjà installé dans %s." % o.dossier)
@@ -478,9 +502,10 @@ class Gestionnaire:
         depot.cloner(o.conf["depot"], cible)
         if o.conf.get("ajoute"):
             self._choisir_script(o)
-        if o.conf.get("venv"):
+        if o.conf.get("venv") and not o.rust:
             o.message = "Installation des bibliothèques Python…"
             self._installer_venv(o)
+        self._binaires_rust(o)
         for cmd in o.conf.get("apres_clonage", []):
             o.message = "Installation des compléments…"
             self._executer(o, o.remplir(cmd), cible)
@@ -745,9 +770,11 @@ class Gestionnaire:
     def _choisir_script(self, o, fichier=None):
         """Point d'entrée de l'app : le premier de SCRIPTS_PROBABLES présent dans son dossier. Lève RuntimeError."""
         script = next((s for s in SCRIPTS_PROBABLES if os.path.isfile(os.path.join(o.dossier, s))), None)
+        if script is None and o.rust:
+            return                              # app en Rust : lancée par lancer.sh avec les mêmes options
         if script is None:
-            raise RuntimeError("Ni %s dans %s : ajouter l'app à la main dans config.local.json."
-                             % (" ni ".join(SCRIPTS_PROBABLES), o.dossier))
+            raise RuntimeError("Ni %s ni %s dans %s : ajouter l'app à la main dans config.local.json."
+                             % (" ni ".join(SCRIPTS_PROBABLES), LANCEUR_RUST, o.dossier))
         if script != o.conf["commande"][1]:
             o.conf["commande"][1] = script
             if self.par_id.get(o.id) is o:

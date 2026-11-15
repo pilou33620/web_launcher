@@ -96,6 +96,33 @@ class FauxOutil(unittest.TestCase):
         import urllib.request
         return urllib.request.urlopen("http://127.0.0.1:%d/" % self.port, timeout=3).read().decode()
 
+    def test_passage_en_rust(self):
+        """Un outil réécrit en Rust (server.py remplacé par lancer.sh) : relancé sans toucher au catalogue."""
+        self.action("installer")
+        self.assertFalse(self.o.rust)
+        os.remove(os.path.join(self.travail, "serveur.py"))
+        with open(os.path.join(self.travail, "moteur.py"), "w") as f:     # l'« exécutable » Rust
+            f.write(SERVEUR % "rust")
+        with open(os.path.join(self.travail, "binaires.sh"), "w") as f:
+            f.write("obtenir_binaires() { mkdir -p bin && echo pris >> bin/compte; }\n")
+        with open(os.path.join(self.travail, "lancer.sh"), "w") as f:
+            f.write('. ./binaires.sh\nobtenir_binaires && exec "%s" moteur.py "$@"\n' % sys.executable)
+        with open(os.path.join(self.travail, ".gitignore"), "w") as f:
+            f.write("bin/\n")
+        git(self.travail, "add", "-A")
+        git(self.travail, "commit", "-q", "-m", "portage en Rust")
+        git(self.travail, "push", "-q", "origin", "HEAD:main")
+
+        self.action("mettre_a_jour")
+        self.assertTrue(self.o.installe, self.o.message)
+        self.assertTrue(self.o.rust)
+        self.assertEqual(self.o.commande(), ["sh", "lancer.sh", "{port}"])
+        with open(os.path.join(self.o.dossier, "bin", "compte")) as f:
+            self.assertEqual(f.read(), "pris\n")                    # exécutables pris pendant la mise à jour
+        self.action("demarrer")
+        self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
+        self.assertEqual(self.page(), "rust")
+
     def test_cycle_complet(self):
         self.assertFalse(self.o.installe)
         self.action("installer")

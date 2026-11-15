@@ -169,6 +169,13 @@ type, courbe de poids, export JSON.
 
 ## Particularités des outils
 
+**Outils en Python ou en Rust** : rien à changer dans le catalogue quand un outil passe de
+Python à Rust. Si le script Python de sa commande (`server.py`, `serveur.py`…) a disparu et que
+son dossier contient `lancer.sh`, le launcher lance `sh lancer.sh` avec les mêmes options. Ses
+exécutables sont pris par `binaires.sh` (compilés si `cargo` est sur le Pi, sinon téléchargés depuis
+GitHub) à l'installation et après chaque mise à jour, pas au démarrage. Un dossier resté en Python
+garde sa commande Python. Une app ajoutée depuis la page peut aussi n'avoir que `lancer.sh`.
+
 **tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les
 exports Excel, `certifi` pour la météo). La base reste dans `donnees/`, jamais touchée.
 
