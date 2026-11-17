@@ -192,6 +192,20 @@
       "commande": ["{python}", "server.py", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_royaumes",
+      "nom": "Royaumes",
+      "suffixe": "des Rives",
+      "description": "Gestion et stratégie mois par mois, 1700-1850, en hexagones 3D",
+      "accent": "#d97706",
+      "icone": "couronne",
+      "depot": "https://github.com/pilou33620/web_royaumes.git",
+      "dossiers": ["web_royaumes"],
+      "port": 8800,
+      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }

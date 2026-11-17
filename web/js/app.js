@@ -14,6 +14,7 @@ const ICONES = {
   flamme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5c-4 0-7-2.8-7-6.6 0-3.4 2.4-5.4 3.6-8 .4 2 1.4 3 2.4 3.4C11 6.8 12.6 4 15 2.5c-.4 3 1.2 4.8 2.6 6.8 1 1.5 1.4 3 1.4 4.6 0 4.6-3 7.6-7 7.6z"/><path d="M12 21.5c-1.7 0-3-1.2-3-2.9 0-1.8 1.6-2.8 2.3-4.3.9 1 3.7 2.4 3.7 4.5 0 1.6-1.3 2.7-3 2.7z"/></svg>',
   livre: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v14a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 1 4 17zM20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v14a1.5 1.5 0 0 1 1.5-1.5h5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
   ferme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10l9-6.5 9 6.5v11z"/><path d="M8 21v-7h8v7M8 14l8 7M16 14l-8 7M10.5 9.5h3"/></svg>',
+  couronne: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8l4 4 4.5-6.5 4.5 6.5 4-4-1.5 10h-14z"/><path d="M5 21h14"/></svg>',
   defaut: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>',
 };
 
