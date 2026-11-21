@@ -217,8 +217,9 @@
       "depot": "https://github.com/pilou33620/web_defense.git",
       "dossiers": ["web_defense"],
       "port": 8801,
-      "commande": ["{python}", "serveur.py", "--port", "{port}"],
-      "delai_arret": 5
+      "commande": ["{python}", "server.py", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
     }
   ]
 }

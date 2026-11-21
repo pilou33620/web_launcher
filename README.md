@@ -20,7 +20,7 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | Manuels | [web_manuel](https://github.com/pilou33620/web_manuel) | 8798 | `~/Documents/web_manuel` |
 | Ferme Val Vert | [web_ferme](https://github.com/pilou33620/web_ferme) | 8799 | `~/Documents/web_ferme` (Python 3.10+) |
 | Royaumes des Rives | [web_royaumes](https://github.com/pilou33620/web_royaumes) | 8800 | `~/Documents/web_royaumes` (Rust : exécutable compilé ou téléchargé par `binaires.sh`) |
-| Tower Défense | [web_defense](https://github.com/pilou33620/web_defense) | 8801 | `~/Documents/web_defense` (jeu statique servi par `serveur.py`) |
+| Tower Défense | [web_defense](https://github.com/pilou33620/web_defense) | 8801 | `~/Documents/web_defense` |
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
 
 Une autre app d'un dépôt `https://github.com/pilou33620/…` s'ajoute depuis **Réglages › Ajouter une app** :
