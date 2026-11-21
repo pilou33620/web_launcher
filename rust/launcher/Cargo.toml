@@ -1,0 +1,29 @@
+[package]
+name = "launcher"
+version = "0.1.0"
+edition = "2021"
+description = "Web Launcher : allume, éteint, installe et met à jour les web tools du Raspberry Pi"
+
+[lib]
+doctest = false
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+# écrire les JSON avec l'indentation de la version Python (fichiers relus tels quels)
+serde = "1"
+# Serveur HTTP/HTTPS, CA du poste, nom d'hôte permis : communs aux web tools (dépôt web_suite)
+web_tools_commun = { git = "https://github.com/pilou33620/web_suite", rev = "d40186eebfe11773b92a497c69d25b641264cd0d" }
+# groupes de processus, signaux, waitpid, pseudo-terminal, FIFO, saisie sans écho : sans unsafe
+nix = { version = "0.29", features = ["fs", "process", "signal", "term", "user"] }
+# le terminal d'un outil transmet SIGTERM, SIGINT et SIGHUP à l'outil
+signal-hook = "0.3"
+# mots de passe : les mêmes empreintes que hashlib.scrypt et pbkdf2_hmac de la version Python
+scrypt = { version = "0.11", default-features = false }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.2"
+# heures locales des journaux, dates d'Andy
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# motif du code d'appairage (outils.json), liens réécrits par le relais, adresses des apps ajoutées
+regex = "1"

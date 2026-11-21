@@ -58,6 +58,21 @@ journalctl -u web_launcher -f        # journal du launcher
 
 Sans le service (essai, autre machine) : `python3 launcher.py --port 8090`.
 
+### Version Rust (passage en cours)
+
+Le launcher est réécrit en Rust (`rust/launcher/`, mêmes routes, mêmes fichiers `*.local.json`).
+Le Pi ne compile pas : `binaires.sh` télécharge l'exécutable `launcher-linux-aarch64` publié par la CI
+(publication « binaires »), et `lancer.sh` le lance. Tant que le service n'est pas passé dessus, c'est
+`launcher.py` qui tourne.
+
+```bash
+./installer.sh            # service sur lancer.sh (version Rust)
+./installer.sh --python   # retour à launcher.py
+sh lancer.sh --compte     # ajouter un compte ou changer un mot de passe (version Rust)
+```
+
+Tests de la version Rust : `cargo test --release` (faux outils et dépôts git locaux, sans réseau).
+
 ## Les adresses
 
 - **http://launcher.local** : le launcher annonce ce nom sur le réseau local (mDNS, via

@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["rust/launcher"]
+
+[profile.release]
+opt-level = 3
+strip = true
+
+[profile.dev]
+opt-level = 1

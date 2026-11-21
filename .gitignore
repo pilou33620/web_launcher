@@ -12,3 +12,7 @@ journaux/
 __pycache__/
 *.py[cod]
 andy_donnees.local.json
+
+# Rust : compilation et exécutables (compilés ici ou téléchargés)
+/target/
+/bin/

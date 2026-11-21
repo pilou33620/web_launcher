@@ -1,6 +1,7 @@
 #!/bin/sh
 # Web Launcher : installation sur le Raspberry Pi (service systemd, démarre à l'allumage).
-#   ./installer.sh            installe (ou met à jour) le service et le démarre
+#   ./installer.sh            installe (ou met à jour) le service et le démarre (version Rust, lancer.sh)
+#   ./installer.sh --python   idem avec l'ancienne version Python (launcher.py) : retour en arrière
 #   ./installer.sh --retirer  arrête et supprime le service (les outils ne sont pas touchés)
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -16,12 +17,16 @@ if [ "$1" = "--retirer" ]; then
   exit 0
 fi
 
+PYTHON=""
+[ "$1" = "--python" ] && PYTHON=1
+
 oui() { printf "%s [o/N] " "$1"; read -r r; case "$r" in o|O|oui|y|Y) return 0;; *) return 1;; esac; }
 
 echo "== Paquets nécessaires"
 MANQUE=""
 command -v python3 >/dev/null || MANQUE="$MANQUE python3"
 command -v git >/dev/null || MANQUE="$MANQUE git"
+command -v curl >/dev/null || MANQUE="$MANQUE curl"
 command -v avahi-publish >/dev/null || MANQUE="$MANQUE avahi-utils"
 python3 -c 'import ensurepip' 2>/dev/null || MANQUE="$MANQUE python3-venv"
 if [ -n "$MANQUE" ]; then
@@ -46,12 +51,21 @@ for ancien in gamelles web_conquete web_theme_hospital; do
   fi
 done
 
+if [ -n "$PYTHON" ]; then
+  LANCEMENT="$PY $DIR/launcher.py"
+else
+  echo
+  echo "== Exécutable du launcher (Rust, téléchargé depuis GitHub)"
+  (cd "$DIR" && . ./binaires.sh && obtenir_binaires) || { echo "Exécutable introuvable : ./installer.sh --python garde l'ancienne version."; exit 1; }
+  LANCEMENT="/bin/sh $DIR/lancer.sh"
+fi
+
 echo
 echo "== Compte (identifiant et mot de passe de la page web)"
 if [ -f "$DIR/compte.local.json" ]; then
-  echo "   déjà créé (le changer : python3 launcher.py --compte)."
+  echo "   déjà créé (le changer : sh lancer.sh --compte)."
 else
-  until "$PY" "$DIR/launcher.py" --compte; do echo "   Recommencer."; done
+  until $LANCEMENT --compte; do echo "   Recommencer."; done
 fi
 
 echo
@@ -65,7 +79,7 @@ Wants=network-online.target
 [Service]
 User=$UTILISATEUR
 WorkingDirectory=$DIR
-ExecStart=$PY $DIR/launcher.py
+ExecStart=$LANCEMENT
 Restart=always
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1
