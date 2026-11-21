@@ -206,6 +206,19 @@
       "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
+    },
+    {
+      "id": "web_defense",
+      "nom": "Tower",
+      "suffixe": "Défense",
+      "description": "Tower defense à travers les époques, de l'Antiquité à 2035",
+      "accent": "#0d9488",
+      "icone": "bouclier",
+      "depot": "https://github.com/pilou33620/web_defense.git",
+      "dossiers": ["web_defense"],
+      "port": 8801,
+      "commande": ["{python}", "serveur.py", "--port", "{port}"],
+      "delai_arret": 5
     }
   ]
 }
