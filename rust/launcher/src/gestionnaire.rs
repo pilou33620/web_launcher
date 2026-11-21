@@ -403,7 +403,9 @@ fn demander_etat(port: u16) -> Option<HashMap<String, u16>> {
     let mut s = TcpStream::connect_timeout(&SocketAddr::from((Ipv4Addr::LOCALHOST, port)), delai).ok()?;
     s.set_read_timeout(Some(delai)).ok()?;
     s.set_write_timeout(Some(delai)).ok()?;
-    write!(s, "GET /api/etat HTTP/1.0\r\nHost: 127.0.0.1:{}\r\nAccept-Encoding: identity\r\n\r\n", port).ok()?;
+    // en un seul envoi : un serveur qui lit une fois puis ferme ne coupe pas la demande en route
+    let demande = format!("GET /api/etat HTTP/1.0\r\nHost: 127.0.0.1:{}\r\nAccept-Encoding: identity\r\n\r\n", port);
+    s.write_all(demande.as_bytes()).ok()?;
     let mut r = Vec::new();
     s.take(4 * 1024 * 1024).read_to_end(&mut r).ok()?;
     let debut = r.windows(4).position(|w| w == b"\r\n\r\n")? + 4;
@@ -646,7 +648,7 @@ impl Gestionnaire {
 
     fn noter(&self, o: &Outil, texte: &str) {
         if let Ok(mut f) = self.ouvrir_journal(o, false) {
-            let _ = writeln!(f, "[launcher {}] {}", heure("%d/%m %H:%M:%S"), texte);
+            let _ = f.write_all(format!("[launcher {}] {}\n", heure("%d/%m %H:%M:%S"), texte).as_bytes()); // une ligne d'un bloc
         }
     }
 
