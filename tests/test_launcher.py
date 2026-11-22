@@ -17,7 +17,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lanceur import andy, claude, compte, config, reseau  # noqa: E402
-from lanceur.gestionnaire import Gestionnaire, OccupeErreur  # noqa: E402
+from lanceur.gestionnaire import Gestionnaire, OccupeErreur, Outil  # noqa: E402
 
 SERVEUR = """import http.server, sys
 VERSION = %r
@@ -1258,6 +1258,23 @@ class Claude(unittest.TestCase):
                 claude.faire_confiance("c")
         self.assertEqual(lancees, [("tmux", "send-keys", "-t", "=c:", "y", "Enter")])
 
+
+
+class TestCatalogue(unittest.TestCase):
+    def test_commandes_designent_un_fichier(self):
+        """Chaque commande du vrai outils.json désigne un fichier du dépôt cloné à côté (s'il est là)."""
+        racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(racine, "outils.json"), encoding="utf-8") as f:
+            catalogue = json.load(f)
+        documents = os.path.dirname(racine)         # les outils sont clonés à côté du launcher
+        for conf in catalogue["outils"]:
+            with self.subTest(conf["id"]):
+                cmd = conf["commande"]
+                if cmd[0] == "sh":
+                    self.assertRegex(cmd[1], r"^demarrer_[A-Z0-9_]+\.sh$")
+                o = Outil(conf, documents)
+                if os.path.isdir(o.dossier):
+                    self.assertTrue(o.installe, "%s introuvable dans %s" % (o.script, o.dossier))
 
 if __name__ == "__main__":
     unittest.main()
