@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use web_tools_commun::appairage::{self, deballer};
-use web_tools_commun::serveur::{decoder_url, ErreurCorps, Reponse, Requete, Serveur};
+use web_tools_commun::serveur::{decoder_chemin, ErreurCorps, Reponse, Requete, Serveur};
 
 use crate::andy::Andy;
 use crate::claude::{self, Claude};
@@ -304,7 +304,7 @@ fn type_web(p: &Path) -> Option<&'static str> {
 
 /// Un fichier de web/ ; rien hors de ce dossier, ni fichier caché, ni extension inconnue.
 fn fichier_web(app: &App, chemin: &str) -> Reponse {
-    let rel = if chemin == "/" { "index.html".to_string() } else { decoder_url(chemin.trim_start_matches('/')) };
+    let rel = if chemin == "/" { "index.html".to_string() } else { decoder_chemin(chemin.trim_start_matches('/')) };
     let p = Path::new(&rel);
     let sur = p.components().all(|c| matches!(c, Component::Normal(n) if !n.to_string_lossy().starts_with('.')));
     let f = app.web.join(p);
@@ -329,7 +329,7 @@ fn get(r: &Requete, app: &App) -> Reponse {
 
 fn get_brut(r: &Requete, app: &App, vue: &Vue) -> Reponse {
     let chemin = r.chemin().to_string();
-    let brut = decoder_url(&chemin);
+    let brut = decoder_chemin(&chemin);
     if brut.contains('\\') || brut.contains('\0') || !chemin_normal(&brut) {
         return Reponse::texte(404, "introuvable");
     }
