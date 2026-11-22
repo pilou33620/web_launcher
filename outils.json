@@ -95,6 +95,20 @@
       "delai_arret": 15
     },
     {
+      "id": "web_pluie",
+      "nom": "Web",
+      "suffixe": "Pluie",
+      "description": "Radar de pluie et probabilité qu'il pleuve sur sa position, de 5 min à 1 h",
+      "accent": "#2a78d6",
+      "icone": "meteo",
+      "depot": "https://github.com/pilou33620/web_pluie.git",
+      "dossiers": ["web_pluie"],
+      "port": 8802,
+      "commande": ["sh", "demarrer_WEB_PLUIE.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
+      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "delai_arret": 15
+    },
+    {
       "id": "web_office",
       "nom": "Circuit",
       "suffixe": "Story",
