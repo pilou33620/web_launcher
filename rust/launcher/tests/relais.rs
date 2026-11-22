@@ -228,6 +228,8 @@ fn envoi_nettoye() {
     assert_eq!((vu["taille"].as_u64(), vu["somme"].as_u64()), (Some(gros.len() as u64), Some(somme)));
     let outil = format!("127.0.0.1:{}", b.port_outil);
     assert_eq!(vu["Host"], outil.as_str());
+    // un outil en --local (fausse ici sur 127.0.0.1) contrôle toujours le Host : il accepte celui du relais
+    assert!(web_tools_commun::appairage::hote_permis(Some(&outil)));
     assert_eq!(vu["Origin"], format!("http://{}", outil).as_str());
     assert_eq!(vu["Referer"], format!("http://{}/dossier/page?x=1", outil).as_str());
     assert_eq!(vu["Cookie"], "theme=sombre"); // ni session du launcher, ni rien d'autre

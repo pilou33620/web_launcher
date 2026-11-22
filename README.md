@@ -76,10 +76,11 @@ son empreinte SHA-256 ; avec `cargo` sur le poste, il est compilé sur place.
 - **http://192.168.x.x** : l'adresse IP du Pi, affichée en haut de la page (bouton *copier*).
 - **http://<nom-du-pi>.local** : le nom habituel du Pi (`raspberrypi.local` par défaut).
 
-Chaque carte affiche l'adresse de son outil (`http://<IP du Pi>:<port>/`) et un bouton
-**Ouvrir ↗**. L'IP est utilisée plutôt que `launcher.local` parce que certains outils
-(tooth_dentaire, WEB·SUITE) refusent par sécurité un nom qu'ils ne connaissent pas.
-Ouvert sur le Pi lui-même, le launcher envoie vers `127.0.0.1`.
+Chaque carte affiche l'adresse de son outil et un bouton **Ouvrir ↗**. Les outils n'écoutent
+que sur `127.0.0.1` (`--local` dans `outils.json`) : l'adresse est **toujours celle du relais
+public**, `https://<nom tailscale>:8443/o/<id>/` (voir « Depuis n'importe où »), même quand
+la page est ouverte par l'IP du Pi. Sans nom Tailscale (launcher hors du Pi), c'est
+`http://<IP>:<port>/`.
 
 Si l'IP du Pi change (box redémarrée), `launcher.local` suit tout seul. Pour une adresse
 stable, réserver l'IP du Pi dans la box (bail DHCP fixe).
@@ -196,9 +197,9 @@ dans `donnees/`, jamais touchée.
 **web_menu** : dépôt privé (voir plus bas). `profils.local.js` et `donnees.local.json`
 restent sur le Pi, jamais touchés par les mises à jour.
 
-**web_conquete** : lancé avec `--lan`, sauvegardes dans `saves/`.
+**web_conquete** : lancé avec `--local`, sauvegardes dans `saves/`.
 
-**web_royaumes** : en Rust (`lancer.sh`), lancé avec `--lan`, sauvegardes dans `saves/`.
+**web_royaumes** : en Rust (`lancer.sh`), lancé avec `--local`, sauvegardes dans `saves/`.
 
 **web_suite** : c'est lui-même un lanceur pour WEB_CAO, WEB_ANTENNA et WEB_3D.
 
@@ -207,15 +208,13 @@ restent sur le Pi, jamais touchés par les mises à jour.
   en 32 bits, il faut `cargo` sur le Pi pour les compiler).
 - *Installer* clone web_suite puis lance son installateur (`bin/installer tous`),
   qui télécharge les trois outils dans le dossier de web_suite.
-- *Démarrer* lance son lanceur en mode réseau, port 8100. WEB_CAO, WEB_3D et WEB_ANTENNA se
-  lancent ensuite depuis la page de WEB·SUITE (bouton *Ouvrir ↗*).
+- *Démarrer* lance son lanceur en local (`--local`, 127.0.0.1), port 8100. WEB_CAO, WEB_3D et
+  WEB_ANTENNA, en local eux aussi, se lancent ensuite depuis la page de WEB·SUITE (bouton *Ouvrir ↗*).
 - *Mettre à jour* met à jour web_suite **et** WEB_CAO, WEB_ANTENNA, WEB_3D (la carte compte
   les nouveautés des quatre dépôts), puis redémarre. Le dossier `PROJETS/` n'est pas touché
   par le launcher : WEB·SUITE le synchronise lui-même.
-- **Code d'appairage** : WEB·SUITE demande un code à 6 chiffres à chaque nouvel appareil.
-  Normalement affiché dans son terminal, il est ici affiché sur sa carte (valable 10 min).
-  Conséquence : toute personne qui ouvre le launcher peut appairer un appareil. Le jeton
-  réseau, lui, est masqué dans le journal.
+- **Pas de code d'appairage** sous le launcher : WEB·SUITE et ses outils n'écoutent que sur
+  127.0.0.1, on les joint par le relais (`relais_sous_outils`).
 - WEB_ANTENNA a besoin d'openEMS pour simuler (pas installé automatiquement sur Pi, voir
   le README de web_suite).
 - Le dépôt des projets (`WEB_SUITE_PROJETS`) est privé : connecter le Pi à GitHub.
@@ -318,8 +317,10 @@ Tailscale Funnel + Caddy (mot de passe) devant le launcher, aucun port ouvert su
 
 - `https://<pi>.xxx.ts.net/` : le launcher (Funnel 443 → Caddy 18080 → launcher 80).
 - `https://<pi>.xxx.ts.net:8443/o/<id>/` : les outils (Funnel 8443 → Caddy 18081 → relais du
-  launcher, `127.0.0.1:18089`). Sur la page ouverte en https, **Ouvrir ↗** et **Copier
-  l'adresse** prennent ce chemin tout seuls ; sur le réseau local, rien ne change (`IP:port`).
+  launcher, `127.0.0.1:18089`). C'est la **seule entrée des outils** : ils n'écoutent que sur
+  127.0.0.1. **Ouvrir ↗**, **Copier l'adresse** et le champ « Adresse » donnent ce chemin, même
+  sur la page ouverte par l'IP locale (nom pris de `tailscale status`, champ `nom_tailscale` de
+  `/api/etat`).
   WEB_CAO, WEB_ANTENNA et WEB_3D, lancés par WEB·SUITE, y sont aussi (`relais_sous_outils` dans
   `outils.json` ; le port réel vient de `/api/etat` de WEB·SUITE) : **Ouvrir ↗** de WEB·SUITE reste sous `/o/` quand la page y est.
 
@@ -338,8 +339,7 @@ le launcher pourrait appeler son API (créer un compte, piloter les terminaux...
 - Limites : les outils relayés partagent entre eux l'adresse 8443 (cookies et stockage du
   navigateur communs) ; avec deux outils ouverts en même temps, un WebSocket appelé par un
   chemin absolu peut partir vers le dernier outil ouvert. Pour l'outil, la requête vient de
-  `127.0.0.1` : ce qu'il réserve à « ce poste » (code d'appairage de WEB·SUITE) n'est pas
-  demandé par le relais.
+  `127.0.0.1`, avec `Host: 127.0.0.1:<port>` : la garde d'un outil en `--local` l'accepte.
 - Réglages (`config.local.json`) : `port_relais` (18089), `port_public_relais` (8443).
 
 ## Comptes
@@ -383,9 +383,11 @@ sh demarrer_WEB_LAUNCHER.sh --compte     # identifiant nouveau : ajouté ; exist
 - **Ce que protège le compte** : le launcher (démarrer, arrêter, mettre à jour, installer,
   terminaux, journaux). Les autres sites web ne peuvent pas non plus le piloter (cookie
   `SameSite=Strict`, en-tête `X-Launcher` exigé, nom d'hôte contrôlé contre le DNS rebinding).
-- **Ce qu'il ne protège pas** : les outils eux-mêmes, sur leurs ports (8150, 8080...). Chacun
-  a sa propre garde (caisse `web_tools_commun`, ou `appairage.py` pour un outil resté en Python) : un autre appareil y entre le code d'appairage, affiché sur
-  sa carte.
+- **Les outils** : ils n'écoutent que sur 127.0.0.1 (`--local`), leurs ports (8150, 8080...)
+  ne sont joignables ni du réseau local ni de Tailscale. Seule entrée : le relais public
+  (mot de passe Caddy, puis compte du launcher). Plus de code d'appairage sur le Pi ; la garde
+  de chaque outil (caisse `web_tools_commun`) reste pour un outil ouvert sur un réseau hors du
+  launcher (tooth_dentaire au cabinet).
 - **HTTPS sur le réseau de la maison** : le launcher sert aussi HTTPS sur son port
   (`https://192.168.1.x:80`), et y renvoie les autres appareils, pour que le mot de passe ne passe
   pas en clair sur le Wi-Fi. Sans la CA du poste (`/appairage/ca.pem`), le navigateur affiche une

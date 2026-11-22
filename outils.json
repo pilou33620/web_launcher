@@ -20,8 +20,7 @@
       "depot": "https://github.com/pilou33620/tooth_dentaire.git",
       "dossiers": ["tooth_dentaire"],
       "port": 8150,
-      "commande": ["sh", "demarrer_TOOTH_DENTAIRE.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
+      "commande": ["sh", "demarrer_TOOTH_DENTAIRE.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause"]
     },
     {
       "id": "web_menu",
@@ -33,8 +32,7 @@
       "depot": "https://github.com/pilou33620/web_menu.git",
       "dossiers": ["web_menu"],
       "port": 8080,
-      "commande": ["sh", "demarrer_WEB_MENU.sh", "--port", "{port}", "--maj", "0"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
+      "commande": ["sh", "demarrer_WEB_MENU.sh", "--local", "--port", "{port}", "--maj", "0"]
     },
     {
       "id": "web_conquete",
@@ -46,8 +44,7 @@
       "depot": "https://github.com/pilou33620/web_conquete.git",
       "dossiers": ["web_conquete"],
       "port": 8790,
-      "commande": ["sh", "demarrer_WEB_CONQUETE.sh", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
+      "commande": ["sh", "demarrer_WEB_CONQUETE.sh", "--local", "--port", "{port}", "--no-browser", "--no-update"]
     },
     {
       "id": "web_suite",
@@ -59,11 +56,10 @@
       "depot": "https://github.com/pilou33620/web_suite.git",
       "dossiers": ["web_suite", "WEB_SUITE", "WEB_TOOLS"],
       "port": 8100,
-      "commande": ["sh", "demarrer_WEB_SUITE.sh", "--reseau", "--sans-navigateur", "--sans-maj", "--port", "{port}"],
+      "commande": ["sh", "demarrer_WEB_SUITE.sh", "--local", "--sans-navigateur", "--sans-maj", "--port", "{port}"],
       "apres_clonage": [["sh", "-c", "export WEB_SUITE_DEPOT=\"$PWD\" && . ./scripts/binaires.sh && obtenir_binaires && bin/installer tous --sans-dependances"]],
       "sous_depots": ["WEB_CAO", "WEB_ANTENNA", "WEB_3D"],
       "relais_sous_outils": {"web_cao": 8000, "web_antenna": 8732, "web_3d": 8139},
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 20
     },
     {
@@ -76,8 +72,7 @@
       "depot": "https://github.com/pilou33620/web_theme_H.git",
       "dossiers": ["web_theme_H"],
       "port": 8791,
-      "commande": ["sh", "demarrer_WEB_THEME_H.sh", "--port", "{port}"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_THEME_H.sh", "--local", "--port", "{port}"],
       "delai_arret": 15
     },
     {
@@ -90,8 +85,7 @@
       "depot": "https://github.com/pilou33620/web_weather.git",
       "dossiers": ["web_weather"],
       "port": 8792,
-      "commande": ["sh", "demarrer_WEB_WEATHER.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_WEATHER.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -104,8 +98,7 @@
       "depot": "https://github.com/pilou33620/web_pluie.git",
       "dossiers": ["web_pluie"],
       "port": 8802,
-      "commande": ["sh", "demarrer_WEB_PLUIE.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_PLUIE.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -118,8 +111,7 @@
       "depot": "https://github.com/pilou33620/web_office.git",
       "dossiers": ["web_office"],
       "port": 8793,
-      "commande": ["sh", "demarrer_WEB_OFFICE.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_OFFICE.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -132,8 +124,7 @@
       "depot": "https://github.com/pilou33620/web_power.git",
       "dossiers": ["web_power"],
       "port": 8794,
-      "commande": ["sh", "demarrer_WEB_POWER.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_POWER.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -146,8 +137,7 @@
       "depot": "https://github.com/pilou33620/web_space.git",
       "dossiers": ["web_space"],
       "port": 8795,
-      "commande": ["sh", "demarrer_WEB_SPACE.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_SPACE.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -160,8 +150,7 @@
       "depot": "https://github.com/pilou33620/web_rugby.git",
       "dossiers": ["web_rugby"],
       "port": 8796,
-      "commande": ["sh", "demarrer_WEB_RUGBY.sh", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_RUGBY.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -174,8 +163,7 @@
       "depot": "https://github.com/pilou33620/web_fire.git",
       "dossiers": ["web_fire"],
       "port": 8797,
-      "commande": ["sh", "demarrer_WEB_FIRE.sh", "--lan", "--port", "{port}", "--no-browser"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_FIRE.sh", "--local", "--port", "{port}", "--no-browser"],
       "delai_arret": 15
     },
     {
@@ -188,8 +176,7 @@
       "depot": "https://github.com/pilou33620/web_manuel.git",
       "dossiers": ["web_manuel"],
       "port": 8798,
-      "commande": ["sh", "demarrer_WEB_MANUEL.sh", "--lan", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_MANUEL.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-pause", "--sans-maj"],
       "delai_arret": 10
     },
     {
@@ -202,8 +189,7 @@
       "depot": "https://github.com/pilou33620/web_ferme.git",
       "dossiers": ["web_ferme"],
       "port": 8799,
-      "commande": ["sh", "demarrer_WEB_FERME.sh", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_FERME.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
       "delai_arret": 15
     },
     {
@@ -216,8 +202,7 @@
       "depot": "https://github.com/pilou33620/web_royaumes.git",
       "dossiers": ["web_royaumes"],
       "port": 8800,
-      "commande": ["sh", "demarrer_WEB_ROYAUMES.sh", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_ROYAUMES.sh", "--local", "--port", "{port}", "--no-browser", "--no-update"],
       "delai_arret": 15
     },
     {
@@ -230,8 +215,7 @@
       "depot": "https://github.com/pilou33620/web_defense.git",
       "dossiers": ["web_defense"],
       "port": 8801,
-      "commande": ["sh", "demarrer_WEB_DEFENSE.sh", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
-      "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
+      "commande": ["sh", "demarrer_WEB_DEFENSE.sh", "--local", "--port", "{port}", "--sans-navigateur", "--sans-maj"],
       "delai_arret": 15
     }
   ]

@@ -191,6 +191,9 @@ mod essais {
         assert_eq!(ports.len(), n, "deux outils sur le même port");
         for o in conf["outils"].as_array().unwrap() {
             assert!(o["commande"].as_array().unwrap().contains(&json!("{port}")), "{}", o["id"]);
+            // sur le Pi, un outil n'écoute que sur 127.0.0.1 : on le joint par le relais public, sans code d'appairage
+            assert!(o["commande"].as_array().unwrap().contains(&json!("--local")), "{} sans --local", o["id"]);
+            assert!(o.get("code_appairage").is_none(), "{} : code_appairage inutile en local", o["id"]);
         }
     }
 }

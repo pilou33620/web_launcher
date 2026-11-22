@@ -1,3 +1,7 @@
+
+      # les liens des outils : toujours le relais public quand le Pi a un nom Tailscale
+      - name: Interface (liens des outils)
+        run: node rust/launcher/tests/page_liens.js
 name: bancs d'essai
 
 on:
@@ -28,6 +32,10 @@ jobs:
       # la page : chaque script doit au moins se lire
       - name: Interface (syntaxe)
         run: for f in $(find web -name '*.js'); do node --check "$f" || exit 1; done
+
+      # les liens des outils : toujours le relais public quand le Pi a un nom Tailscale
+      - name: Interface (liens des outils)
+        run: node rust/launcher/tests/page_liens.js
 
       - name: Scripts shell (syntaxe)
         run: for f in demarrer_WEB_LAUNCHER.sh lancer.sh scripts/binaires.sh installer.sh; do sh -n "$f" || exit 1; done

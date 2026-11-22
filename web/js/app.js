@@ -64,13 +64,17 @@ function hoteOutils() {
   if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) return h;   // IP déjà tapée (réseau local, Tailscale 100.x) : on la garde
   return (etat && (etat.launcher.ici || etat.launcher.ip)) || h;   // un nom (pilou.local, MagicDNS) : l'IP jointe
 }
-// Page ouverte par Tailscale Funnel (https sans port, depuis Internet) : les ports des outils ne sont pas
-// joignables, l'outil passe par le relais du launcher, sur le port 8443 : une autre origine que le launcher,
-// pour qu'une page d'outil ne puisse pas appeler l'API du launcher. Sur le Wi-Fi, le https garde son port (:80).
+// Les outils du Pi n'écoutent que sur 127.0.0.1 : on les ouvre toujours par le relais public du launcher
+// (Tailscale Funnel, port 8443), même depuis le réseau local. Une autre origine que le launcher, pour qu'une
+// page d'outil ne puisse pas appeler l'API du launcher. Page ouverte par Funnel : https sans port (sur le
+// Wi-Fi, le https garde son port :80). Sans nom Tailscale (launcher hors du Pi) : l'adresse directe IP:port.
 const parRelais = () => location.protocol === "https:" && !location.port;
-const urlOutil = (o) => parRelais()
-  ? `https://${location.hostname}:${(etat && etat.launcher.port_public_relais) || 8443}/o/${o.id}/`
-  : `http://${hoteOutils()}:${o.port}/`;
+function urlOutil(o) {
+  const nom = parRelais() ? location.hostname : etat && etat.launcher.nom_tailscale;
+  return nom
+    ? `https://${nom}:${(etat && etat.launcher.port_public_relais) || 8443}/o/${o.id}/`
+    : `http://${hoteOutils()}:${o.port}/`;
+}
 
 function dateCourte(iso) {
   if (!iso) return "";
