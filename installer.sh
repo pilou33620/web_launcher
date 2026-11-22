@@ -1,7 +1,6 @@
 #!/bin/sh
 # Web Launcher : installation sur le Raspberry Pi (service systemd, démarre à l'allumage).
-#   ./installer.sh            installe (ou met à jour) le service et le démarre (version Rust, demarrer_WEB_LAUNCHER.sh)
-#   ./installer.sh --python   idem avec l'ancienne version Python (launcher.py) : retour en arrière
+#   ./installer.sh            installe (ou met à jour) le service et le démarre (demarrer_WEB_LAUNCHER.sh)
 #   ./installer.sh --retirer  arrête et supprime le service (les outils ne sont pas touchés)
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,26 +16,19 @@ if [ "$1" = "--retirer" ]; then
   exit 0
 fi
 
-PYTHON=""
-[ "$1" = "--python" ] && PYTHON=1
-
 oui() { printf "%s [o/N] " "$1"; read -r r; case "$r" in o|O|oui|y|Y) return 0;; *) return 1;; esac; }
 
 echo "== Paquets nécessaires"
 MANQUE=""
-command -v python3 >/dev/null || MANQUE="$MANQUE python3"
 command -v git >/dev/null || MANQUE="$MANQUE git"
 command -v curl >/dev/null || MANQUE="$MANQUE curl"
 command -v avahi-publish >/dev/null || MANQUE="$MANQUE avahi-utils"
-python3 -c 'import ensurepip' 2>/dev/null || MANQUE="$MANQUE python3-venv"
 if [ -n "$MANQUE" ]; then
   echo "   installation de :$MANQUE"
   sudo apt-get update -qq && sudo apt-get install -y $MANQUE
 else
   echo "   tout est déjà là."
 fi
-PY="$(command -v python3)"
-"$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' || { echo "Python 3.8 ou plus récent est nécessaire."; exit 1; }
 
 # Les web tools lancés jusqu'ici par leur propre service : c'est le launcher qui s'en charge désormais.
 for ancien in gamelles web_conquete web_theme_hospital; do
@@ -51,14 +43,10 @@ for ancien in gamelles web_conquete web_theme_hospital; do
   fi
 done
 
-if [ -n "$PYTHON" ]; then
-  LANCEMENT="$PY $DIR/launcher.py"
-else
-  echo
-  echo "== Exécutable du launcher (Rust, téléchargé depuis GitHub)"
-  (cd "$DIR" && . ./scripts/binaires.sh && obtenir_binaires) || { echo "Exécutable introuvable : ./installer.sh --python garde l'ancienne version."; exit 1; }
-  LANCEMENT="/bin/sh $DIR/demarrer_WEB_LAUNCHER.sh"
-fi
+echo
+echo "== Exécutable du launcher (téléchargé depuis GitHub)"
+(cd "$DIR" && . ./scripts/binaires.sh && obtenir_binaires) || { echo "Exécutable introuvable : vérifier la connexion à GitHub."; exit 1; }
+LANCEMENT="/bin/sh $DIR/demarrer_WEB_LAUNCHER.sh"
 
 echo
 echo "== Compte (identifiant et mot de passe de la page web)"
@@ -82,7 +70,6 @@ WorkingDirectory=$DIR
 ExecStart=$LANCEMENT
 Restart=always
 RestartSec=3
-Environment=PYTHONUNBUFFERED=1
 # Port 80 sans être root : « http://launcher.local » sans numéro de port.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 # Arrêter ou redémarrer le launcher n'arrête pas les web tools : il les retrouve en repartant.

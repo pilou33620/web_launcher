@@ -18,7 +18,7 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | Rugby Top 14 | [web_rugby](https://github.com/pilou33620/web_rugby) | 8796 | `~/Documents/web_rugby` |
 | WebFire | [web_fire](https://github.com/pilou33620/web_fire) | 8797 | `~/Documents/web_fire` |
 | Manuels | [web_manuel](https://github.com/pilou33620/web_manuel) | 8798 | `~/Documents/web_manuel` |
-| Ferme Val Vert | [web_ferme](https://github.com/pilou33620/web_ferme) | 8799 | `~/Documents/web_ferme` (Python 3.10+) |
+| Ferme Val Vert | [web_ferme](https://github.com/pilou33620/web_ferme) | 8799 | `~/Documents/web_ferme` |
 | Royaumes des Rives | [web_royaumes](https://github.com/pilou33620/web_royaumes) | 8800 | `~/Documents/web_royaumes` (Rust : exécutable compilé ou téléchargé par `binaires.sh`) |
 | Tower Défense | [web_defense](https://github.com/pilou33620/web_defense) | 8801 | `~/Documents/web_defense` |
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
@@ -29,22 +29,8 @@ port libre (8790-8899) et la lance avec `--port <port>` plus les options saisies
 `config.local.json`.
 
 Le serveur est en **Rust** (`rust/launcher/`) : le Pi ne compile pas, `scripts/binaires.sh` télécharge l'exécutable
-publié par la CI, et `demarrer_WEB_LAUNCHER.sh` le lance (`lancer.sh`, l'ancien nom, y relaie). Il faut seulement git et curl (Python 3.8+ pour les outils restés en
-Python).
+publié par la CI, et `demarrer_WEB_LAUNCHER.sh` le lance (`lancer.sh`, l'ancien nom, y relaie). Il faut seulement git et curl : plus aucun Python.
 
-### Deux versions côte à côte (passage en cours)
-
-L'ancienne version Python (`launcher.py`, `lanceur/`) reste dans le dépôt, **intacte**, tant que le service du
-Pi n'est pas passé sur `demarrer_WEB_LAUNCHER.sh` : jusque-là, c'est **elle qui tourne**. Les deux lisent et écrivent les mêmes
-fichiers (`*.local.json`, `journaux/`) et servent les mêmes routes : on passe de l'une à l'autre sans rien perdre.
-
-```bash
-./installer.sh            # service sur demarrer_WEB_LAUNCHER.sh (version Rust)
-./installer.sh --python   # retour à launcher.py (version Python)
-```
-
-Dans la suite, les commandes sont celles de la version Rust ; leur équivalent Python est indiqué entre
-parenthèses.
 
 ## Installation sur le Raspberry Pi
 
@@ -57,12 +43,12 @@ cd web_launcher
 
 L'installateur :
 
-1. installe ce qui manque : `git`, `curl`, `python3-venv` (pour tooth_dentaire), `avahi-utils` (pour `launcher.local`) ;
+1. installe ce qui manque : `git`, `curl`, `avahi-utils` (pour `launcher.local`) ;
 2. propose de désactiver les anciens services `gamelles` (web_menu) et `web_conquete`
    s'ils existent : c'est le launcher qui gère ces outils désormais ;
-3. télécharge l'exécutable du launcher (`scripts/binaires.sh` ; pas avec `--python`) ;
+3. télécharge l'exécutable du launcher (`scripts/binaires.sh`) ;
 4. demande l'**identifiant et le mot de passe** de la page web (voir « Compte ») ;
-5. crée le service systemd `web_launcher` (sur `demarrer_WEB_LAUNCHER.sh`, ou `launcher.py` avec `--python` ;
+5. crée le service systemd `web_launcher` (sur `demarrer_WEB_LAUNCHER.sh` ;
    un service déjà installé sur `lancer.sh` marche aussi, par le relais) : il démarre à
    l'allumage, sur le **port 80** (sans être root), et redémarre tout seul en cas de problème ;
 6. propose de connecter le Pi à GitHub si `gh` est installé (dépôts privés, voir plus bas).
@@ -75,7 +61,7 @@ journalctl -u web_launcher -f        # journal du launcher
 ./installer.sh --retirer             # supprimer le service
 ```
 
-Sans le service (essai, autre machine) : `sh demarrer_WEB_LAUNCHER.sh --port 8090` (Python : `python3 launcher.py --port 8090`).
+Sans le service (essai, autre machine) : `sh demarrer_WEB_LAUNCHER.sh --port 8090`.
 Autres options : `--dossier ~/Documents`, `--sans-mdns`, `--compte`.
 
 L'exécutable vient de la publication « binaires » du dépôt (`launcher-linux-aarch64` pour le Pi), vérifié par
@@ -146,7 +132,7 @@ avec un onglet par outil : tout ce que l'outil affiche, en direct, comme dans un
 terminal, et une ligne pour lui **répondre** (Entrée pour envoyer) et un bouton **Ctrl+C**.
 
 Chaque outil tourne dans un vrai terminal (pseudo-terminal tenu par `launcher --console`,
-`rust/launcher/src/console.rs` ; Python : `lanceur/console.py`) :
+`rust/launcher/src/console.rs`) :
 il peut donc poser ses questions au démarrage. Quand une question attend une réponse,
 la carte affiche **Attend une réponse ↗** et la fenêtre Terminaux le signale. Exemple :
 WEB·SUITE, tant que le Pi n'est pas connecté à GitHub, demande à chaque démarrage
@@ -204,8 +190,8 @@ racine, anciens outils) à l'installation et après chaque mise à jour, pas au 
 `cargo` est sur le Pi, sinon téléchargés depuis GitHub). Un dossier resté en Python garde sa commande Python. Une app ajoutée depuis la
 page peut aussi n'avoir que `demarrer_<NOM>.sh` ou `lancer.sh`.
 
-**tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les
-exports Excel, `certifi` pour la météo). La base reste dans `donnees/`, jamais touchée.
+**tooth_dentaire** : un exécutable Rust, comme les autres outils (plus de `.venv`). La base reste
+dans `donnees/`, jamais touchée.
 
 **web_menu** : dépôt privé (voir plus bas). `profils.local.js` et `donnees.local.json`
 restent sur le Pi, jamais touchés par les mises à jour.
@@ -313,7 +299,6 @@ rust/launcher/src/
   compte.rs              comptes, mots de passe hachés, sessions
   console.rs             terminal d'un outil (pseudo-terminal, saisie via journaux/<id>.entree)
   config.rs, andy.rs, claude.rs, nettoyer.rs   catalogue et réglages, suivi d'Andy, sessions Claude, ménage des branches
-launcher.py, lanceur/    l'ancienne version Python, gardée tant que le service n'est pas passé sur demarrer_WEB_LAUNCHER.sh
 web/                     les pages (launcher, Terminaux), HTML, CSS, JS sans dépendance
 outils.json              catalogue des outils
 installer.sh             installation du service sur le Pi
@@ -322,7 +307,7 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 ```
 
 Tests : `cargo test --release` (faux outils et dépôts git locaux, sans réseau), lancés par la CI à chaque
-envoi ; version Python : `python3 -m unittest discover tests`. Le bouton **Sécurité** affiche `~/Documents/rpi_securite` : le diagramme, les scripts
+envoi. Le bouton **Sécurité** affiche `~/Documents/rpi_securite` : le diagramme, les scripts
 de mise en ligne et de pare-feu, et `verif_acces_outils.py`, à lancer sur le Pi.
 
 ## Depuis n'importe où, sans application (Tailscale Funnel)
@@ -349,7 +334,7 @@ le launcher pourrait appeler son API (créer un compte, piloter les terminaux...
   les en-têtes `Tailscale-*`. Un outil ne peut pas poser les cookies du launcher ni installer
   de service worker. Envois et WebSocket : refusés si la page d'origine est un autre site.
 - Pris en charge : liens absolus (`/api/x`), redirections, cookies, envois de fichiers, flux
-  (SSE), WebSocket (`rust/launcher/src/relais.rs` ; Python : `lanceur/relais.py`).
+  (SSE), WebSocket (`rust/launcher/src/relais.rs`).
 - Limites : les outils relayés partagent entre eux l'adresse 8443 (cookies et stockage du
   navigateur communs) ; avec deux outils ouverts en même temps, un WebSocket appelé par un
   chemin absolu peut partir vers le dernier outil ouvert. Pour l'outil, la requête vient de
@@ -369,7 +354,6 @@ droits. Le premier est créé par `installer.sh`.
 
 ```bash
 sh demarrer_WEB_LAUNCHER.sh --compte     # identifiant nouveau : ajouté ; existant : nouveau mot de passe
-                          # (Python : python3 launcher.py --compte)
 ```
 
 - Le mot de passe n'est **jamais stocké en clair** : seule son empreinte **scrypt** (sel
@@ -390,7 +374,7 @@ sh demarrer_WEB_LAUNCHER.sh --compte     # identifiant nouveau : ajouté ; exist
   elle arrive de 127.0.0.1 ; cookies `Secure` et en-tête HSTS en https.
 - Changer le mot de passe d'un compte déconnecte ses autres appareils ; supprimer un compte
   déconnecte tous ses appareils. Les autres comptes ne sont pas touchés.
-- Mot de passe oublié : `sh demarrer_WEB_LAUNCHER.sh --compte` (Python : `python3 launcher.py --compte`) sur le Pi (en SSH).
+- Mot de passe oublié : `sh demarrer_WEB_LAUNCHER.sh --compte` sur le Pi (en SSH).
 - Sans compte créé, seul le Pi lui-même (127.0.0.1) a accès, et la page l'affiche en rouge ;
   les autres appareils sont renvoyés vers la connexion, qui demande de créer le compte.
 
