@@ -199,9 +199,9 @@ type, courbe de poids, export JSON.
 Python à Rust. Si le script Python de sa commande (`server.py`, `serveur.py`…) a disparu, le launcher
 lance `sh demarrer_<NOM>.sh` si le dossier en a un (REGLES-NOUVEAU-WEB-TOOL.md §5.1), sinon
 `sh lancer.sh`, avec les mêmes options. Une commande du catalogue déjà en `sh demarrer_…` est
-lancée telle quelle. `demarrer_<NOM>.sh` prend lui-même ses exécutables (`scripts/binaires.sh`) au
-démarrage ; un ancien outil avec `binaires.sh` à la racine les prend à l'installation et après
-chaque mise à jour. Un dossier resté en Python garde sa commande Python. Une app ajoutée depuis la
+lancée telle quelle. Ses exécutables sont pris par `scripts/binaires.sh` (sinon `binaires.sh` à la
+racine, anciens outils) à l'installation et après chaque mise à jour, pas au démarrage (compilés si
+`cargo` est sur le Pi, sinon téléchargés depuis GitHub). Un dossier resté en Python garde sa commande Python. Une app ajoutée depuis la
 page peut aussi n'avoir que `demarrer_<NOM>.sh` ou `lancer.sh`.
 
 **tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les

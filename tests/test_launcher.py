@@ -98,15 +98,23 @@ class FauxOutil(unittest.TestCase):
 
     def test_passage_en_rust(self):
         """Un outil réécrit en Rust (server.py remplacé par lancer.sh) : relancé sans toucher au catalogue."""
+        self.passage_en_rust("binaires.sh", "lancer.sh")
+
+    def test_passage_en_rust_scripts(self):
+        """Méthode web_suite : demarrer_<NOM>.sh, exécutables pris par scripts/binaires.sh."""
+        self.passage_en_rust("scripts/binaires.sh", "demarrer_FAUX.sh")
+
+    def passage_en_rust(self, binaires, lanceur):
         self.action("installer")
         self.assertFalse(self.o.rust)
         os.remove(os.path.join(self.travail, "serveur.py"))
         with open(os.path.join(self.travail, "moteur.py"), "w") as f:     # l'« exécutable » Rust
             f.write(SERVEUR % "rust")
-        with open(os.path.join(self.travail, "binaires.sh"), "w") as f:
+        os.makedirs(os.path.join(self.travail, "scripts"), exist_ok=True)
+        with open(os.path.join(self.travail, binaires), "w") as f:
             f.write("obtenir_binaires() { mkdir -p bin && echo pris >> bin/compte; }\n")
-        with open(os.path.join(self.travail, "lancer.sh"), "w") as f:
-            f.write('. ./binaires.sh\nobtenir_binaires && exec "%s" moteur.py "$@"\n' % sys.executable)
+        with open(os.path.join(self.travail, lanceur), "w") as f:
+            f.write('. ./%s\nobtenir_binaires && exec "%s" moteur.py "$@"\n' % (binaires, sys.executable))
         with open(os.path.join(self.travail, ".gitignore"), "w") as f:
             f.write("bin/\n")
         git(self.travail, "add", "-A")
@@ -116,7 +124,7 @@ class FauxOutil(unittest.TestCase):
         self.action("mettre_a_jour")
         self.assertTrue(self.o.installe, self.o.message)
         self.assertTrue(self.o.rust)
-        self.assertEqual(self.o.commande(), ["sh", "lancer.sh", "{port}"])
+        self.assertEqual(self.o.commande(), ["sh", lanceur, "{port}"])
         with open(os.path.join(self.o.dossier, "bin", "compte")) as f:
             self.assertEqual(f.read(), "pris\n")                    # exécutables pris pendant la mise à jour
         self.action("demarrer")

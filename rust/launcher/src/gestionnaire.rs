@@ -35,7 +35,7 @@ const DUREE_CODE: f64 = 600.0; // un code d'appairage WEB·SUITE vit 10 min
 const SCRIPTS_PROBABLES: [&str; 2] = ["serveur.py", "server.py"]; // point d'entrée d'une app ajoutée, dans cet ordre
 const LANCEUR_RUST: &str = "lancer.sh"; // point d'entrée d'un web tool passé de Python à Rust...
 const DEMARREUR_RUST: &str = "demarrer_"; // ...remplacé par demarrer_<NOM>.sh (REGLES-NOUVEAU-WEB-TOOL.md 5.1)
-const BINAIRES_RUST: [&str; 3] = ["sh", "-c", ". ./binaires.sh && obtenir_binaires"]; // compile (cargo) ou télécharge
+const BINAIRES_RUST: [&str; 2] = ["scripts/binaires.sh", "binaires.sh"]; // compile (cargo) ou télécharge, dans cet ordre
 // ceux du launcher lui-même, rangés dans scripts/ comme ceux de web_suite
 const BINAIRES_LAUNCHER: [&str; 3] = ["sh", "-c", ". ./scripts/binaires.sh && obtenir_binaires"];
 const PLAGE_PORTS: std::ops::Range<u16> = 8790..8900; // ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
@@ -962,9 +962,9 @@ impl Gestionnaire {
     /// démarrage, où une compilation sur le Pi dépasserait DELAI_DEMARRAGE.
     fn binaires_rust(&self, o: &Outil) -> Result<(), String> {
         let dossier = o.dossier();
-        if o.rust() && dossier.join("binaires.sh").is_file() {
+        if let Some(script) = BINAIRES_RUST.iter().find(|s| dossier.join(s).is_file()).filter(|_| o.rust()) {
             o.e().message = "Compilation ou téléchargement de l'exécutable (Rust)…".into();
-            let cmd: Vec<String> = BINAIRES_RUST.iter().map(|s| s.to_string()).collect();
+            let cmd: Vec<String> = vec!["sh".into(), "-c".into(), format!(". ./{} && obtenir_binaires", script)];
             self.executer(o, &cmd, &dossier, 3600)?;
         }
         Ok(())

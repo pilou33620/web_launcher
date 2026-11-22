@@ -28,7 +28,7 @@ DUREE_CODE = 600                        # un code d'appairage WEB·SUITE vit 10 
 SCRIPTS_PROBABLES = ("serveur.py", "server.py")      # point d'entrée d'une app ajoutée, dans cet ordre
 LANCEUR_RUST = "lancer.sh"              # point d'entrée d'un web tool passé de Python à Rust...
 DEMARREUR_RUST = "demarrer_"            # ...remplacé par demarrer_<NOM>.sh (REGLES-NOUVEAU-WEB-TOOL.md 5.1)
-BINAIRES_RUST = ["sh", "-c", ". ./binaires.sh && obtenir_binaires"]  # compile (cargo) ou télécharge ses exécutables
+BINAIRES_RUST = ("scripts/binaires.sh", "binaires.sh")  # compile (cargo) ou télécharge ses exécutables, dans cet ordre
 PLAGE_PORTS = range(8790, 8900)         # ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
 DEPOTS_PERMIS = "https://github.com/pilou33620/"     # seules apps installables depuis la page
 CONSOLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console.py")
@@ -503,9 +503,10 @@ class Gestionnaire:
     def _binaires_rust(self, o):
         """Outil en Rust : ses exécutables sont pris ici (installation, mise à jour) plutôt qu'au
         démarrage, où une compilation sur le Pi dépasserait DELAI_DEMARRAGE."""
-        if o.rust and os.path.isfile(os.path.join(o.dossier, "binaires.sh")):
+        script = next((s for s in BINAIRES_RUST if os.path.isfile(os.path.join(o.dossier, s))), None)
+        if o.rust and script:
             o.message = "Compilation ou téléchargement de l'exécutable (Rust)…"
-            self._executer(o, BINAIRES_RUST, o.dossier, delai=3600)
+            self._executer(o, ["sh", "-c", ". ./%s && obtenir_binaires" % script], o.dossier, delai=3600)
 
     def _a_installer(self, o):
         if o.installe:

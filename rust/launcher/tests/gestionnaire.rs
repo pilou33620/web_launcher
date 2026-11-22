@@ -154,13 +154,24 @@ fn cycle_complet() {
 #[test]
 fn passage_en_rust() {
     // un outil réécrit en Rust (serveur.py remplacé par lancer.sh) : relancé sans toucher au catalogue
-    let f = faux("rust");
+    passage_en_rust_avec("rust", "binaires.sh", "lancer.sh");
+}
+
+#[test]
+fn passage_en_rust_scripts() {
+    // méthode web_suite : demarrer_<NOM>.sh, exécutables pris par scripts/binaires.sh
+    passage_en_rust_avec("rust-scripts", "scripts/binaires.sh", "demarrer_FAUX.sh");
+}
+
+fn passage_en_rust_avec(nom: &str, binaires: &str, lanceur: &str) {
+    let f = faux(nom);
     f.action("installer");
     assert!(!f.o.rust());
     std::fs::remove_file(f.travail.join("serveur.py")).unwrap();
     std::fs::write(f.travail.join("moteur.py"), serveur("rust")).unwrap(); // l'« exécutable » Rust
-    std::fs::write(f.travail.join("binaires.sh"), "obtenir_binaires() { mkdir -p bin && echo pris >> bin/compte; }\n").unwrap();
-    std::fs::write(f.travail.join("lancer.sh"), ". ./binaires.sh\nobtenir_binaires && exec python3 moteur.py \"$@\"\n").unwrap();
+    std::fs::create_dir_all(f.travail.join("scripts")).unwrap();
+    std::fs::write(f.travail.join(binaires), "obtenir_binaires() { mkdir -p bin && echo pris >> bin/compte; }\n").unwrap();
+    std::fs::write(f.travail.join(lanceur), format!(". ./{}\nobtenir_binaires && exec python3 moteur.py \"$@\"\n", binaires)).unwrap();
     std::fs::write(f.travail.join(".gitignore"), "bin/\n").unwrap();
     git(&f.travail, &["add", "-A"]);
     git(&f.travail, &["commit", "-q", "-m", "portage en Rust"]);
@@ -168,7 +179,7 @@ fn passage_en_rust() {
     f.action("mettre_a_jour");
     assert!(f.o.installe(), "{}", f.o.e().message);
     assert!(f.o.rust());
-    assert_eq!(f.o.commande(), vec!["sh", "lancer.sh", "{port}"]);
+    assert_eq!(f.o.commande(), vec!["sh", lanceur, "{port}"]);
     assert_eq!(std::fs::read_to_string(f.o.dossier().join("bin/compte")).unwrap(), "pris\n"); // exécutables pris pendant la mise à jour
     f.action("demarrer");
     assert!(f.en_marche());
