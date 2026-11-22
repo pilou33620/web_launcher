@@ -46,7 +46,7 @@
       "depot": "https://github.com/pilou33620/web_conquete.git",
       "dossiers": ["web_conquete"],
       "port": 8790,
-      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
+      "commande": ["sh", "demarrer_WEB_CONQUETE.sh", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})"
     },
     {
@@ -216,7 +216,7 @@
       "depot": "https://github.com/pilou33620/web_royaumes.git",
       "dossiers": ["web_royaumes"],
       "port": 8800,
-      "commande": ["{python}", "server.py", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
+      "commande": ["sh", "demarrer_WEB_ROYAUMES.sh", "--lan", "--port", "{port}", "--no-browser", "--no-update"],
       "code_appairage": "Code d'appairage[^:]*:\\s*(\\d{3} \\d{3})",
       "delai_arret": 15
     },
