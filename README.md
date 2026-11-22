@@ -24,22 +24,22 @@ Depuis n'importe quel appareil du réseau local : **http://launcher.local**
 | ThemeHospital | [web_theme_H](https://github.com/pilou33620/web_theme_H) | 8791 | `~/Documents/web_theme_H` (dépendances : `sh raspberry/installer.sh --dependances`, demande sudo) |
 
 Une autre app d'un dépôt `https://github.com/pilou33620/…` s'ajoute depuis **Réglages › Ajouter une app** :
-le launcher la télécharge, prend `serveur.py` ou `server.py` (ou `lancer.sh` pour une app en Rust), lui donne un
+le launcher la télécharge, prend `serveur.py` ou `server.py` (ou `demarrer_<NOM>.sh`, sinon `lancer.sh`, pour une app en Rust), lui donne un
 port libre (8790-8899) et la lance avec `--port <port>` plus les options saisies. L'entrée est gardée dans
 `config.local.json`.
 
-Le serveur est en **Rust** (`rust/launcher/`) : le Pi ne compile pas, `binaires.sh` télécharge l'exécutable
-publié par la CI, et `lancer.sh` le lance. Il faut seulement git et curl (Python 3.8+ pour les outils restés en
+Le serveur est en **Rust** (`rust/launcher/`) : le Pi ne compile pas, `scripts/binaires.sh` télécharge l'exécutable
+publié par la CI, et `demarrer_WEB_LAUNCHER.sh` le lance (`lancer.sh`, l'ancien nom, y relaie). Il faut seulement git et curl (Python 3.8+ pour les outils restés en
 Python).
 
 ### Deux versions côte à côte (passage en cours)
 
 L'ancienne version Python (`launcher.py`, `lanceur/`) reste dans le dépôt, **intacte**, tant que le service du
-Pi n'est pas passé sur `lancer.sh` : jusque-là, c'est **elle qui tourne**. Les deux lisent et écrivent les mêmes
+Pi n'est pas passé sur `demarrer_WEB_LAUNCHER.sh` : jusque-là, c'est **elle qui tourne**. Les deux lisent et écrivent les mêmes
 fichiers (`*.local.json`, `journaux/`) et servent les mêmes routes : on passe de l'une à l'autre sans rien perdre.
 
 ```bash
-./installer.sh            # service sur lancer.sh (version Rust)
+./installer.sh            # service sur demarrer_WEB_LAUNCHER.sh (version Rust)
 ./installer.sh --python   # retour à launcher.py (version Python)
 ```
 
@@ -60,9 +60,10 @@ L'installateur :
 1. installe ce qui manque : `git`, `curl`, `python3-venv` (pour tooth_dentaire), `avahi-utils` (pour `launcher.local`) ;
 2. propose de désactiver les anciens services `gamelles` (web_menu) et `web_conquete`
    s'ils existent : c'est le launcher qui gère ces outils désormais ;
-3. télécharge l'exécutable du launcher (`binaires.sh` ; pas avec `--python`) ;
+3. télécharge l'exécutable du launcher (`scripts/binaires.sh` ; pas avec `--python`) ;
 4. demande l'**identifiant et le mot de passe** de la page web (voir « Compte ») ;
-5. crée le service systemd `web_launcher` (sur `lancer.sh`, ou `launcher.py` avec `--python`) : il démarre à
+5. crée le service systemd `web_launcher` (sur `demarrer_WEB_LAUNCHER.sh`, ou `launcher.py` avec `--python` ;
+   un service déjà installé sur `lancer.sh` marche aussi, par le relais) : il démarre à
    l'allumage, sur le **port 80** (sans être root), et redémarre tout seul en cas de problème ;
 6. propose de connecter le Pi à GitHub si `gh` est installé (dépôts privés, voir plus bas).
 
@@ -74,7 +75,7 @@ journalctl -u web_launcher -f        # journal du launcher
 ./installer.sh --retirer             # supprimer le service
 ```
 
-Sans le service (essai, autre machine) : `sh lancer.sh --port 8090` (Python : `python3 launcher.py --port 8090`).
+Sans le service (essai, autre machine) : `sh demarrer_WEB_LAUNCHER.sh --port 8090` (Python : `python3 launcher.py --port 8090`).
 Autres options : `--dossier ~/Documents`, `--sans-mdns`, `--compte`.
 
 L'exécutable vient de la publication « binaires » du dépôt (`launcher-linux-aarch64` pour le Pi), vérifié par
@@ -195,11 +196,13 @@ type, courbe de poids, export JSON.
 ## Particularités des outils
 
 **Outils en Python ou en Rust** : rien à changer dans le catalogue quand un outil passe de
-Python à Rust. Si le script Python de sa commande (`server.py`, `serveur.py`…) a disparu et que
-son dossier contient `lancer.sh`, le launcher lance `sh lancer.sh` avec les mêmes options. Ses
-exécutables sont pris par `binaires.sh` (compilés si `cargo` est sur le Pi, sinon téléchargés depuis
-GitHub) à l'installation et après chaque mise à jour, pas au démarrage. Un dossier resté en Python
-garde sa commande Python. Une app ajoutée depuis la page peut aussi n'avoir que `lancer.sh`.
+Python à Rust. Si le script Python de sa commande (`server.py`, `serveur.py`…) a disparu, le launcher
+lance `sh demarrer_<NOM>.sh` si le dossier en a un (REGLES-NOUVEAU-WEB-TOOL.md §5.1), sinon
+`sh lancer.sh`, avec les mêmes options. Une commande du catalogue déjà en `sh demarrer_…` est
+lancée telle quelle. `demarrer_<NOM>.sh` prend lui-même ses exécutables (`scripts/binaires.sh`) au
+démarrage ; un ancien outil avec `binaires.sh` à la racine les prend à l'installation et après
+chaque mise à jour. Un dossier resté en Python garde sa commande Python. Une app ajoutée depuis la
+page peut aussi n'avoir que `demarrer_<NOM>.sh` ou `lancer.sh`.
 
 **tooth_dentaire** : installé avec un environnement Python `.venv` (`openpyxl` pour les
 exports Excel, `certifi` pour la météo). La base reste dans `donnees/`, jamais touchée.
@@ -298,8 +301,9 @@ sudo systemctl restart web_launcher
 ## Fichiers
 
 ```
-lancer.sh                point d'entrée : obtient l'exécutable (binaires.sh) puis le lance
-binaires.sh              télécharge (ou compile avec cargo) l'exécutable bin/launcher
+demarrer_WEB_LAUNCHER.sh point d'entrée : obtient l'exécutable (scripts/binaires.sh) puis le lance
+lancer.sh                ancien nom, relaie vers demarrer_WEB_LAUNCHER.sh (services déjà installés)
+scripts/binaires.sh      télécharge (ou compile avec cargo) l'exécutable bin/launcher
 rust/launcher/src/
   serveur.rs             serveur web et API (/api/etat, /api/outils/<id>/<action>, /api/journal/<id>, /api/console/<id>, /api/temp), options
   gestionnaire.rs        démarrage, arrêt, reprise, installation, mises à jour
@@ -309,7 +313,7 @@ rust/launcher/src/
   compte.rs              comptes, mots de passe hachés, sessions
   console.rs             terminal d'un outil (pseudo-terminal, saisie via journaux/<id>.entree)
   config.rs, andy.rs, claude.rs, nettoyer.rs   catalogue et réglages, suivi d'Andy, sessions Claude, ménage des branches
-launcher.py, lanceur/    l'ancienne version Python, gardée tant que le service n'est pas passé sur lancer.sh
+launcher.py, lanceur/    l'ancienne version Python, gardée tant que le service n'est pas passé sur demarrer_WEB_LAUNCHER.sh
 web/                     les pages (launcher, Terminaux), HTML, CSS, JS sans dépendance
 outils.json              catalogue des outils
 installer.sh             installation du service sur le Pi
@@ -364,7 +368,7 @@ droits. Le premier est créé par `installer.sh`.
 - **Sur le Pi** (en SSH), par exemple en cas d'oubli :
 
 ```bash
-sh lancer.sh --compte     # identifiant nouveau : ajouté ; existant : nouveau mot de passe
+sh demarrer_WEB_LAUNCHER.sh --compte     # identifiant nouveau : ajouté ; existant : nouveau mot de passe
                           # (Python : python3 launcher.py --compte)
 ```
 
@@ -386,7 +390,7 @@ sh lancer.sh --compte     # identifiant nouveau : ajouté ; existant : nouveau m
   elle arrive de 127.0.0.1 ; cookies `Secure` et en-tête HSTS en https.
 - Changer le mot de passe d'un compte déconnecte ses autres appareils ; supprimer un compte
   déconnecte tous ses appareils. Les autres comptes ne sont pas touchés.
-- Mot de passe oublié : `sh lancer.sh --compte` (Python : `python3 launcher.py --compte`) sur le Pi (en SSH).
+- Mot de passe oublié : `sh demarrer_WEB_LAUNCHER.sh --compte` (Python : `python3 launcher.py --compte`) sur le Pi (en SSH).
 - Sans compte créé, seul le Pi lui-même (127.0.0.1) a accès, et la page l'affiche en rouge ;
   les autres appareils sont renvoyés vers la connexion, qui demande de créer le compte.
 

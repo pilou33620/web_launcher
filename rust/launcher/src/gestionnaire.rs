@@ -33,8 +33,11 @@ const RELANCES_MAX: usize = 3; // relances automatiques après un plantage...
 const FENETRE_RELANCES: f64 = 600.0; // ...dans cette fenêtre (s)
 const DUREE_CODE: f64 = 600.0; // un code d'appairage WEB·SUITE vit 10 min
 const SCRIPTS_PROBABLES: [&str; 2] = ["serveur.py", "server.py"]; // point d'entrée d'une app ajoutée, dans cet ordre
-const LANCEUR_RUST: &str = "lancer.sh"; // point d'entrée d'un web tool passé de Python à Rust
+const LANCEUR_RUST: &str = "lancer.sh"; // point d'entrée d'un web tool passé de Python à Rust...
+const DEMARREUR_RUST: &str = "demarrer_"; // ...remplacé par demarrer_<NOM>.sh (REGLES-NOUVEAU-WEB-TOOL.md 5.1)
 const BINAIRES_RUST: [&str; 3] = ["sh", "-c", ". ./binaires.sh && obtenir_binaires"]; // compile (cargo) ou télécharge
+// ceux du launcher lui-même, rangés dans scripts/ comme ceux de web_suite
+const BINAIRES_LAUNCHER: [&str; 3] = ["sh", "-c", ". ./scripts/binaires.sh && obtenir_binaires"];
 const PLAGE_PORTS: std::ops::Range<u16> = 8790..8900; // ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
 const DEPOTS_PERMIS: &str = "https://github.com/pilou33620/"; // seules apps installables depuis la page
 
@@ -223,21 +226,39 @@ impl Outil {
         self.champ("commande").as_array().map(|a| a.iter().map(|v| v.as_str().unwrap_or("").to_string()).collect()).unwrap_or_default()
     }
 
-    /// Web tool porté en Rust : son script Python a disparu et lancer.sh l'a remplacé.
-    /// Un dossier resté en Python (pas encore mis à jour) garde sa commande Python.
-    pub fn rust(&self) -> bool {
+    /// Web tool porté en Rust : son script Python a disparu ; rend son point d'entrée,
+    /// demarrer_<NOM>.sh s'il existe, sinon lancer.sh. None : pas porté (un dossier resté en
+    /// Python, pas encore mis à jour, garde sa commande Python).
+    pub fn lanceur_rust(&self) -> Option<String> {
         let cmd = self.commande_catalogue();
         let d = self.dossier();
-        cmd.len() > 1 && cmd[0] == "{python}" && !d.join(&cmd[1]).is_file() && d.join(LANCEUR_RUST).is_file()
+        if cmd.len() < 2 || cmd[0] != "{python}" || d.join(&cmd[1]).is_file() {
+            return None;
+        }
+        let mut demarreurs: Vec<String> = std::fs::read_dir(&d)
+            .map(|l| {
+                l.flatten()
+                    .filter(|e| e.path().is_file())
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .filter(|n| n.starts_with(DEMARREUR_RUST) && n.ends_with(".sh"))
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        demarreurs.sort();
+        demarreurs.into_iter().next().or_else(|| d.join(LANCEUR_RUST).is_file().then(|| LANCEUR_RUST.to_string()))
     }
 
-    /// La commande du catalogue ; pour un outil en Rust, « sh lancer.sh » avec les mêmes options.
+    pub fn rust(&self) -> bool {
+        self.lanceur_rust().is_some()
+    }
+
+    /// La commande du catalogue ; pour un outil en Rust, « sh demarrer_<NOM>.sh » (ou
+    /// « sh lancer.sh ») avec les mêmes options.
     pub fn commande(&self) -> Vec<String> {
         let cmd = self.commande_catalogue();
-        if self.rust() {
-            ["sh", LANCEUR_RUST].iter().map(|s| s.to_string()).chain(cmd.into_iter().skip(2)).collect()
-        } else {
-            cmd
+        match self.lanceur_rust() {
+            Some(lanceur) => ["sh".to_string(), lanceur].into_iter().chain(cmd.into_iter().skip(2)).collect(),
+            None => cmd,
         }
     }
 
@@ -1015,9 +1036,9 @@ impl Gestionnaire {
             m.erreur = None;
         }
         self.sauver();
-        if !changes.is_empty() && self.chemins.racine.join("binaires.sh").is_file() {
-            let mut c = Command::new(BINAIRES_RUST[0]);
-            c.args(&BINAIRES_RUST[1..]).current_dir(&self.chemins.racine);
+        if !changes.is_empty() && self.chemins.racine.join("scripts/binaires.sh").is_file() {
+            let mut c = Command::new(BINAIRES_LAUNCHER[0]);
+            c.args(&BINAIRES_LAUNCHER[1..]).current_dir(&self.chemins.racine);
             match crate::sortie(c, Duration::from_secs(1800)) {
                 Ok(r) => (self.ecrire)(String::from_utf8_lossy(&r.stdout).trim_end()),
                 Err(_) => (self.ecrire)("  Nouvel exécutable du launcher introuvable : l'ancien redémarre."),
@@ -1358,7 +1379,7 @@ impl Gestionnaire {
         let dossier = o.dossier();
         let Some(script) = SCRIPTS_PROBABLES.iter().find(|s| dossier.join(s).is_file()) else {
             if o.rust() {
-                return Ok(()); // app en Rust : lancée par lancer.sh avec les mêmes options
+                return Ok(()); // app en Rust : lancée par demarrer_<NOM>.sh (ou lancer.sh) avec les mêmes options
             }
             return Err(format!(
                 "Ni {} ni {} dans {} : ajouter l'app à la main dans config.local.json.",

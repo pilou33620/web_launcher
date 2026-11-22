@@ -26,7 +26,8 @@ RELANCES_MAX = 3                        # relances automatiques après un planta
 FENETRE_RELANCES = 600                  # ...dans cette fenêtre (s)
 DUREE_CODE = 600                        # un code d'appairage WEB·SUITE vit 10 min
 SCRIPTS_PROBABLES = ("serveur.py", "server.py")      # point d'entrée d'une app ajoutée, dans cet ordre
-LANCEUR_RUST = "lancer.sh"              # point d'entrée d'un web tool passé de Python à Rust
+LANCEUR_RUST = "lancer.sh"              # point d'entrée d'un web tool passé de Python à Rust...
+DEMARREUR_RUST = "demarrer_"            # ...remplacé par demarrer_<NOM>.sh (REGLES-NOUVEAU-WEB-TOOL.md 5.1)
 BINAIRES_RUST = ["sh", "-c", ". ./binaires.sh && obtenir_binaires"]  # compile (cargo) ou télécharge ses exécutables
 PLAGE_PORTS = range(8790, 8900)         # ports des apps ajoutées (REGLES-NOUVEAU-WEB-TOOL.md 5.3)
 DEPOTS_PERMIS = "https://github.com/pilou33620/"     # seules apps installables depuis la page
@@ -107,18 +108,33 @@ class Outil:
         return os.path.join(self.racine_outils, noms[0])
 
     @property
-    def rust(self):
-        """Web tool porté en Rust : son script Python a disparu et lancer.sh l'a remplacé.
-        Un dossier resté en Python (pas encore mis à jour) garde sa commande Python."""
+    def lanceur_rust(self):
+        """Web tool porté en Rust : son script Python a disparu ; rend son point d'entrée,
+        demarrer_<NOM>.sh s'il existe, sinon lancer.sh. None : pas porté (un dossier resté
+        en Python, pas encore mis à jour, garde sa commande Python)."""
         cmd = self.conf["commande"]
-        return (cmd[0] == "{python}" and len(cmd) > 1
-                and not os.path.isfile(os.path.join(self.dossier, cmd[1]))
-                and os.path.isfile(os.path.join(self.dossier, LANCEUR_RUST)))
+        d = self.dossier
+        if cmd[0] != "{python}" or len(cmd) < 2 or os.path.isfile(os.path.join(d, cmd[1])):
+            return None
+        try:
+            demarreurs = sorted(n for n in os.listdir(d) if n.startswith(DEMARREUR_RUST)
+                                and n.endswith(".sh") and os.path.isfile(os.path.join(d, n)))
+        except OSError:
+            demarreurs = []
+        if demarreurs:
+            return demarreurs[0]
+        return LANCEUR_RUST if os.path.isfile(os.path.join(d, LANCEUR_RUST)) else None
+
+    @property
+    def rust(self):
+        return self.lanceur_rust is not None
 
     def commande(self):
-        """La commande du catalogue ; pour un outil en Rust, « sh lancer.sh » avec les mêmes options."""
+        """La commande du catalogue ; pour un outil en Rust, « sh demarrer_<NOM>.sh » (ou
+        « sh lancer.sh ») avec les mêmes options."""
         cmd = self.conf["commande"]
-        return ["sh", LANCEUR_RUST] + cmd[2:] if self.rust else cmd
+        lanceur = self.lanceur_rust
+        return ["sh", lanceur] + cmd[2:] if lanceur else cmd
 
     @property
     def script(self):

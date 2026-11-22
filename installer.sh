@@ -1,6 +1,6 @@
 #!/bin/sh
 # Web Launcher : installation sur le Raspberry Pi (service systemd, démarre à l'allumage).
-#   ./installer.sh            installe (ou met à jour) le service et le démarre (version Rust, lancer.sh)
+#   ./installer.sh            installe (ou met à jour) le service et le démarre (version Rust, demarrer_WEB_LAUNCHER.sh)
 #   ./installer.sh --python   idem avec l'ancienne version Python (launcher.py) : retour en arrière
 #   ./installer.sh --retirer  arrête et supprime le service (les outils ne sont pas touchés)
 set -e
@@ -56,14 +56,14 @@ if [ -n "$PYTHON" ]; then
 else
   echo
   echo "== Exécutable du launcher (Rust, téléchargé depuis GitHub)"
-  (cd "$DIR" && . ./binaires.sh && obtenir_binaires) || { echo "Exécutable introuvable : ./installer.sh --python garde l'ancienne version."; exit 1; }
-  LANCEMENT="/bin/sh $DIR/lancer.sh"
+  (cd "$DIR" && . ./scripts/binaires.sh && obtenir_binaires) || { echo "Exécutable introuvable : ./installer.sh --python garde l'ancienne version."; exit 1; }
+  LANCEMENT="/bin/sh $DIR/demarrer_WEB_LAUNCHER.sh"
 fi
 
 echo
 echo "== Compte (identifiant et mot de passe de la page web)"
 if [ -f "$DIR/compte.local.json" ]; then
-  echo "   déjà créé (le changer : sh lancer.sh --compte)."
+  echo "   déjà créé (le changer : sh demarrer_WEB_LAUNCHER.sh --compte)."
 else
   until $LANCEMENT --compte; do echo "   Recommencer."; done
 fi

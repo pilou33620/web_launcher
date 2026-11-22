@@ -1051,7 +1051,7 @@ pub fn main() {
     if !gardien.actif() {
         afficher(
             "  [!] Aucun mot de passe : seul ce poste (127.0.0.1) a accès, les autres appareils sont refusés. \
-             Créer le compte : sh lancer.sh --compte",
+             Créer le compte : sh demarrer_WEB_LAUNCHER.sh --compte",
         );
     }
     let mut infos = Map::new();

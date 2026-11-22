@@ -1,7 +1,7 @@
 name: exécutables
 
 # Compile le launcher pour Linux et le dépose dans la publication « binaires » :
-# launcher-<système>.tar.gz et son empreinte SHA-256, que binaires.sh prend sur un poste sans
+# launcher-<système>.tar.gz et son empreinte SHA-256, que scripts/binaires.sh prend sur un poste sans
 # cargo (Raspberry Pi). Le launcher ne tourne que sous Linux (groupes de processus, pseudo-terminaux).
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
           # les compilations arrivent ensemble : une seule crée la publication
           gh release view binaires >/dev/null 2>&1 \
             || gh release create binaires --title "Exécutables" \
-                 --notes "Exécutables du launcher, recompilés à chaque envoi sur main, pris par binaires.sh." \
+                 --notes "Exécutables du launcher, recompilés à chaque envoi sur main, pris par scripts/binaires.sh." \
             || true
           for f in launcher-${{ matrix.nom }}.*; do
             sha256sum "$f" | cut -d" " -f1 > "$f.sha256"

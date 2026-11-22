@@ -176,6 +176,26 @@ fn passage_en_rust() {
 }
 
 #[test]
+fn demarreur_rust() {
+    // outil porté en Rust : sh demarrer_<NOM>.sh s'il existe, sinon sh lancer.sh, avec les mêmes options
+    let f = faux("demarreur");
+    let d = f.o.dossier();
+    std::fs::create_dir_all(&d).unwrap();
+    let creer = |nom: &str| std::fs::write(d.join(nom), "").unwrap();
+    assert_eq!(f.o.commande(), vec!["{python}", "serveur.py", "{port}"]); // ni script ni lanceur
+    creer("lancer.sh");
+    assert_eq!(f.o.commande(), vec!["sh", "lancer.sh", "{port}"]);
+    creer("demarrer_FAUX.sh");
+    assert_eq!(f.o.commande(), vec!["sh", "demarrer_FAUX.sh", "{port}"]);
+    assert!(f.o.installe());
+    creer("serveur.py");
+    assert_eq!(f.o.commande(), vec!["{python}", "serveur.py", "{port}"]); // resté en Python
+    f.o.e().conf.insert("commande".into(), json!(["sh", "demarrer_FAUX.sh", "--sans-maj", "{port}"]));
+    assert!(!f.o.rust());
+    assert_eq!(f.o.commande(), vec!["sh", "demarrer_FAUX.sh", "--sans-maj", "{port}"]); // déjà au catalogue : tel quel
+}
+
+#[test]
 fn relais_des_connexions() {
     let f = faux("connexions");
     std::fs::create_dir_all(f.tmp.join("journaux")).unwrap();

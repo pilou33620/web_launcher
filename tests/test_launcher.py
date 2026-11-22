@@ -123,6 +123,25 @@ class FauxOutil(unittest.TestCase):
         self.assertTrue(attendre(lambda: reseau.port_ouvert(self.port)))
         self.assertEqual(self.page(), "rust")
 
+    def test_demarreur_rust(self):
+        """Outil porté en Rust : sh demarrer_<NOM>.sh s'il existe, sinon sh lancer.sh, avec les mêmes options."""
+        os.makedirs(self.o.dossier)
+
+        def creer(nom):
+            open(os.path.join(self.o.dossier, nom), "w").close()
+
+        self.assertEqual(self.o.commande(), ["{python}", "serveur.py", "{port}"])   # ni script ni lanceur
+        creer("lancer.sh")
+        self.assertEqual(self.o.commande(), ["sh", "lancer.sh", "{port}"])
+        creer("demarrer_FAUX.sh")
+        self.assertEqual(self.o.commande(), ["sh", "demarrer_FAUX.sh", "{port}"])
+        self.assertTrue(self.o.installe)
+        creer("serveur.py")
+        self.assertEqual(self.o.commande(), ["{python}", "serveur.py", "{port}"])   # resté en Python
+        self.o.conf["commande"] = ["sh", "demarrer_FAUX.sh", "--sans-maj", "{port}"]
+        self.assertFalse(self.o.rust)
+        self.assertEqual(self.o.commande(), ["sh", "demarrer_FAUX.sh", "--sans-maj", "{port}"])  # tel quel
+
     def test_cycle_complet(self):
         self.assertFalse(self.o.installe)
         self.action("installer")
