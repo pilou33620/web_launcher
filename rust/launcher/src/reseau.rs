@@ -99,6 +99,7 @@ impl AliasMdns {
             journal(&format!("  mDNS : avahi-publish introuvable (sudo apt install avahi-utils), {}.local ne sera pas annoncé.", nom));
             return;
         }
+        nettoyer_anciens(&nom);
         let moi = self.clone();
         std::thread::spawn(move || loop {
             if let Some(ip) = ip_locale() {
@@ -127,6 +128,27 @@ impl AliasMdns {
     }
 }
 
+/// Le motif pkill des annonces de ce nom : « avahi-publish -a -R <nom>.local » en tête de ligne.
+fn motif_annonce(nom: &str) -> String {
+    let echappe: String = nom.chars().flat_map(|c| {
+        let special = "\\.^$|?*+()[]{}".contains(c);
+        special.then_some('\\').into_iter().chain(std::iter::once(c))
+    }).collect();
+    format!("^avahi-publish -a -R {}\\.local ", echappe)
+}
+
+/// Les annonces laissées par le démarrage précédent : systemd (KillMode=process, pour épargner
+/// les outils) n'arrête que le launcher, son avahi-publish lui survit.
+fn nettoyer_anciens(nom: &str) {
+    let uid = nix::unistd::getuid().to_string();
+    let _ = Command::new("pkill")
+        .args(["-u", &uid, "-f", &motif_annonce(nom)])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
 /// SIGTERM, puis SIGKILL après 5 s.
 fn arreter(proc: &mut Option<Child>) {
     if let Some(mut p) = proc.take() {
@@ -144,6 +166,12 @@ fn arreter(proc: &mut Option<Child>) {
 
 #[cfg(test)]
 mod essais {
+    #[test]
+    fn motif_des_anciennes_annonces() {
+        assert_eq!(motif_annonce("launcher"), "^avahi-publish -a -R launcher\\.local ");
+        assert_eq!(motif_annonce("a.b"), "^avahi-publish -a -R a\\.b\\.local ");
+    }
+
     use super::*;
 
     #[test]

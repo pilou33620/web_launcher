@@ -1210,6 +1210,22 @@ class Relais(unittest.TestCase):
         self.assertIn(b"403", self.lire(s, b"\r\n").split(b"\r\n")[0])
 
 
+
+class Mdns(unittest.TestCase):
+    def test_nettoie_les_annonces_du_demarrage_precedent(self):
+        """systemd n'arrête que le launcher (KillMode=process) : son avahi-publish lui survit.
+        Au démarrage, on retire celles de ce nom, à ce compte, et seulement celles-là."""
+        alias = reseau.AliasMdns("launcher", journal=lambda *a: None)
+        with mock.patch.object(reseau, "nom_machine", return_value="autre"), \
+                mock.patch.object(reseau.shutil, "which", return_value="/usr/bin/avahi-publish"), \
+                mock.patch.object(reseau.subprocess, "run") as run, \
+                mock.patch.object(reseau.threading, "Thread"):
+            alias.demarrer()
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[:3], ["pkill", "-u", str(os.getuid())])
+        self.assertEqual(cmd[3:], ["-f", "^avahi-publish -a -R launcher\\.local "])
+
+
 class Claude(unittest.TestCase):
     def test_dossiers_et_liste(self):
         tmp = tempfile.mkdtemp()

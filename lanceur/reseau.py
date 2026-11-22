@@ -4,6 +4,7 @@ import functools
 import ipaddress
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -123,7 +124,18 @@ class AliasMdns:
             self.journal("  mDNS : avahi-publish introuvable (sudo apt install avahi-utils), "
                          "%s.local ne sera pas annoncé." % self.nom)
             return
+        self._nettoyer_anciens()
         threading.Thread(target=self._boucle, daemon=True).start()
+
+    def _nettoyer_anciens(self):
+        """Les annonces laissées par le démarrage précédent : systemd (KillMode=process, pour
+        épargner les outils) n'arrête que le launcher, son avahi-publish lui survit."""
+        motif = "^avahi-publish -a -R %s\\.local " % re.escape(self.nom)
+        try:
+            subprocess.run(["pkill", "-u", str(os.getuid()), "-f", motif],
+                           stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
 
     def _boucle(self):
         while True:
