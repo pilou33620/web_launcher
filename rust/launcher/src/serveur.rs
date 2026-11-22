@@ -437,7 +437,7 @@ fn etat(app: &App, r: &Requete, login: Option<String>) -> Value {
         .collect();
     infos.insert("adresses".into(), json!(adresses));
     // les outils n'écoutent que sur 127.0.0.1 : la page les ouvre par le relais public de ce nom
-    infos.insert("nom_tailscale".into(), json!(appairage::nom_tailscale()));
+    infos.insert("nom_tailscale".into(), json!(reseau::nom_tailscale()));
     infos.insert("compte".into(), json!(app.gardien.actif()));
     infos.insert("utilisateur".into(), json!(login));
     infos.insert("comptes".into(), json!(app.gardien.comptes()));

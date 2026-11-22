@@ -18,6 +18,31 @@ pub fn ip_tailscale() -> Option<String> {
     web_tools_commun::appairage::ip_tailscale().map(|ip| ip.to_string())
 }
 
+/// Le nom MagicDNS de ce Pi (pilou.tailxxxx.ts.net), "" sans Tailscale. Gardé une fois connu ; tant
+/// qu'il est vide (Tailscale pas encore prêt au démarrage du Pi), redemandé au plus toutes les 60 s.
+pub fn nom_tailscale() -> String {
+    static CACHE: Mutex<(String, Option<Instant>)> = Mutex::new((String::new(), None));
+    nom_en_cache(&CACHE, Instant::now(), lire_nom_tailscale)
+}
+
+fn nom_en_cache(cache: &Mutex<(String, Option<Instant>)>, maintenant: Instant, lire: impl FnOnce() -> String) -> String {
+    let mut c = tenir(cache);
+    if c.0.is_empty() && c.1.is_none_or(|t| maintenant.duration_since(t) >= Duration::from_secs(60)) {
+        c.0 = lire();
+        c.1 = Some(maintenant);
+    }
+    c.0.clone()
+}
+
+fn lire_nom_tailscale() -> String {
+    let sortie = Command::new("tailscale").args(["status", "--json", "--peers=false"]).stdin(Stdio::null()).stderr(Stdio::null()).output();
+    sortie
+        .ok()
+        .and_then(|r| serde_json::from_slice::<serde_json::Value>(&r.stdout).ok())
+        .and_then(|v| v["Self"]["DNSName"].as_str().map(|n| n.trim_end_matches('.').to_lowercase()))
+        .unwrap_or_default()
+}
+
 /// Le nom court de la machine, en minuscules.
 pub fn nom_machine() -> String {
     web_tools_commun::appairage::nom_poste().split('.').next().unwrap_or("").to_lowercase()
@@ -173,6 +198,25 @@ mod essais {
     }
 
     use super::*;
+
+    #[test]
+    fn nom_tailscale_redemande_tant_qu_il_est_vide() {
+        let cache = Mutex::new((String::new(), None));
+        let t0 = Instant::now();
+        let lectures = std::cell::Cell::new(0);
+        let lire = |nom: &'static str| {
+            let l = &lectures;
+            move || {
+                l.set(l.get() + 1);
+                nom.to_string()
+            }
+        };
+        assert_eq!(nom_en_cache(&cache, t0, lire("")), ""); // Tailscale pas prêt
+        assert_eq!(nom_en_cache(&cache, t0 + Duration::from_secs(30), lire("pi.ts.net")), ""); // pas avant 60 s
+        assert_eq!(nom_en_cache(&cache, t0 + Duration::from_secs(61), lire("pi.ts.net")), "pi.ts.net");
+        assert_eq!(nom_en_cache(&cache, t0 + Duration::from_secs(500), lire("autre.ts.net")), "pi.ts.net"); // gardé
+        assert_eq!(lectures.get(), 2);
+    }
 
     #[test]
     fn port_et_pid() {
