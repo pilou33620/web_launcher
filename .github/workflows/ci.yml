@@ -1,7 +1,3 @@
-
-      # les liens des outils : toujours le relais public quand le Pi a un nom Tailscale
-      - name: Interface (liens des outils)
-        run: node rust/launcher/tests/page_liens.js
 name: bancs d'essai
 
 on:
