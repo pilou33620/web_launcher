@@ -307,7 +307,7 @@ etat.local.json          outils allumés et leurs PID (créé tout seul, ignoré
 
 Tests : `cargo test --release` (faux outils et dépôts git locaux, sans réseau), lancés par la CI à chaque
 envoi. Le bouton **Sécurité** affiche `~/Documents/rpi_securite` : le diagramme, les scripts
-de mise en ligne et de pare-feu, et `verif_acces_outils.py`, à lancer sur le Pi.
+de mise en ligne et de pare-feu, et `verif_acces_outils.sh` (outils fermés au réseau, joints par le relais), à lancer sur le Pi.
 
 ## Depuis n'importe où, sans application (Tailscale Funnel)
 
